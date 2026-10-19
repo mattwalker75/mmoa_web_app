@@ -1,0 +1,229 @@
+/* ============================================================================
+   Mission Men of Anna — web app
+   Global design system, ported from the car-show control plane's and toned
+   down: simple and clean, one navy brand color, one warm CTA color, no heavy
+   branding. Component styles stay tiny; nearly everything is expressed with
+   these global utility/element classes — including the classes the
+   admin-editable HTML/ section files use (they are injected via [innerHTML],
+   where component-scoped styles would not apply).
+   ========================================================================== */
+
+:root {
+  /* Brand palette */
+  --brand-900: #0c1a31;
+  --brand-800: #13294b;
+  --brand-700: #1b365f;
+  --brand-600: #24497d;
+  --brand-500: #2f5d9e;
+  --brand-400: #6a8fc6;
+  --accent-500: #c8782a;   /* warm CTA */
+  --accent-600: #ad6420;
+  --accent-400: #dc9450;
+
+  --ink: #141820;
+  --ink-soft: #3b4350;
+  --muted: #6b7280;
+  --line: #e2e6ee;
+  --surface: #ffffff;
+  --surface-2: #f7f8fb;
+  --bg: #f2f4f8;
+
+  --success: #16a34a;
+  --success-bg: #e7f7ed;
+  --danger: #dc2626;
+  --danger-bg: #fdecea;
+  --warn-bg: #fff6e0;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 22px;
+  --shadow-sm: 0 1px 2px rgba(20, 24, 32, .06), 0 1px 3px rgba(20, 24, 32, .05);
+  --shadow: 0 10px 30px -12px rgba(20, 24, 32, .25);
+  --maxw: 1100px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--brand-600); text-decoration: none; }
+a:hover { color: var(--brand-700); }
+h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 .5em; }
+h1 { font-size: clamp(2.1rem, 4.6vw, 3.2rem); font-weight: 800; }
+h2 { font-size: clamp(1.6rem, 3.2vw, 2.3rem); font-weight: 800; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0 0 1rem; }
+
+/* Fluid side gutters: never tighter than 24px on phones, scaling up on wide
+   screens so content always keeps a comfortable margin off the edge. */
+.container { max-width: var(--maxw); margin: 0 auto; padding: 0 clamp(24px, 6vw, 80px); }
+
+/* ── Panels (website "windows") ──────────────────────────────────────────
+   Each home-page section lives inside a panel. Per-section chrome
+   (background, outline, size, label) comes from HTML/windows.json and is
+   applied as inline styles (core/window-style.ts); this rule is the fallback
+   when that config is missing. */
+.panel {
+  position: relative;
+  width: min(var(--maxw), 90%);
+  margin: 32px auto 0;
+  padding: clamp(26px, 4vw, 54px) clamp(22px, 4vw, 56px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+}
+/* Optional corner label (windows.json showTag/tag). */
+.panel-tag {
+  position: absolute; top: -12px; left: 24px;
+  background: var(--brand-600); color: #fff;
+  font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  padding: 4px 11px; border-radius: 999px; box-shadow: var(--shadow-sm);
+}
+/* Centered page column for signed-in screens (member home). */
+.page-shell { width: min(var(--maxw), 88%); margin-inline: auto; padding: 40px 0 64px; }
+.center { text-align: center; }
+.center-block { margin-left: auto; margin-right: auto; }
+.narrow { max-width: 720px; margin: 0 auto; }
+.muted { color: var(--muted); }
+.small-print { font-size: .85rem; margin: 22px 0 0; }
+.lede { font-size: 1.15rem; color: var(--ink-soft); max-width: 640px; }
+.eyebrow {
+  display: inline-block; font-size: .78rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--brand-500); margin-bottom: 12px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px; border-radius: 999px; border: 1px solid transparent;
+  font: inherit; font-weight: 700; font-size: .96rem; cursor: pointer;
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, color .15s ease;
+  text-decoration: none; white-space: nowrap;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent-500); color: #fff; box-shadow: 0 8px 20px -10px rgba(200,120,42,.8); }
+.btn-primary:hover { background: var(--accent-600); color: #fff; transform: translateY(-1px); }
+.btn-dark { background: var(--brand-700); color: #fff; }
+.btn-dark:hover { background: var(--brand-800); color: #fff; transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-light { background: #fff; color: var(--brand-700); }
+.btn-light:hover { background: #eef2f9; color: var(--brand-800); }
+.btn-block { width: 100%; }
+.btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+/* ── Cards ───────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 24px;
+}
+
+/* ── Forms ───────────────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+.field > label { font-weight: 650; font-size: .92rem; color: var(--ink); }
+.field .hint { font-size: .82rem; color: var(--muted); font-weight: 400; }
+/* A .hint that is a link (login → "Forgot your password?") is an action, not
+   helper text — give it the brand color so it doesn't read as inert.
+   `.field a.hint` (0,2,1) outranks `.field .hint` (0,2,0). */
+.field a.hint { color: var(--brand-600); font-size: .88rem; font-weight: 700; }
+.field a.hint:hover, .field a.hint:focus-visible { text-decoration: underline; }
+.input, .textarea, .select {
+  width: 100%; padding: 12px 14px; font: inherit; font-size: 1rem;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff;
+  color: var(--ink); transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus, .textarea:focus, .select:focus {
+  outline: none; border-color: var(--brand-400);
+  box-shadow: 0 0 0 4px rgba(47, 93, 158, .14);
+}
+.textarea { resize: vertical; min-height: 96px; }
+.input-group { position: relative; display: flex; align-items: stretch; }
+.input-group .input { padding-right: 64px; }
+.input-affix {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: var(--brand-600);
+  font-weight: 650; font-size: .82rem; padding: 4px 6px;
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+@media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ── Alerts ──────────────────────────────────────────────────────────── */
+.alert { padding: 12px 15px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: .94rem; border: 1px solid transparent; }
+.alert-error { background: var(--danger-bg); color: #8c2418; border-color: #f4c7c1; }
+.alert-success { background: var(--success-bg); color: #11602f; border-color: #bce6cb; }
+.alert-info { background: #eef3fb; color: #1f3d6b; border-color: #cfdcf0; }
+/* Testing-mode notices (email.showLinksInBrowser → app-dev-link). */
+.alert-warn { background: var(--warn-bg); color: #7a4b00; border-color: #f2d58c; }
+.alert-warn a { color: #7a4b00; }
+
+/* ── Auth shell ──────────────────────────────────────────────────────── */
+.auth-wrap { min-height: calc(100vh - 70px); display: grid; place-items: center; padding: 48px 20px; }
+.auth-card { width: 100%; max-width: 460px; }
+.auth-card.wide { max-width: 720px; }
+.auth-head { text-align: center; margin-bottom: 22px; }
+.auth-head h1 { font-size: 1.8rem; }
+.auth-foot { text-align: center; margin-top: 18px; color: var(--muted); font-size: .94rem; }
+
+/* ── Animations ──────────────────────────────────────────────────────── */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+.rise-2 { animation-delay: .08s; }
+@media (prefers-reduced-motion: reduce) { .rise, .rise-2 { animation: none; } html { scroll-behavior: auto; } }
+
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.5);
+  border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Website section layout ──────────────────────────────────────────────
+   Global (not component-scoped) so they apply to the admin-editable HTML
+   injected via [innerHTML]. */
+.sec { padding: 0; scroll-margin-top: 80px; }
+
+/* Hero: text color comes from windows.json (white on the default navy
+   window), so its pieces inherit rather than hard-coding a color. */
+.hero { max-width: 760px; padding: 18px 0; }
+.hero .eyebrow { color: inherit; opacity: .8; }
+.hero .lede { color: inherit; opacity: .92; }
+.hero-cta { display: flex; gap: 12px; margin: 26px 0 4px; flex-wrap: wrap; }
+.hero .btn-ghost { color: inherit; border-color: rgba(255,255,255,.55); }
+.hero .btn-ghost:hover { background: rgba(255,255,255,.12); color: inherit; }
+
+.tile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 28px; }
+.tile h3 { margin-bottom: 6px; }
+.tile p { margin: 0; }
+
+/* Event cards (DB-driven, rendered by landing.component.ts under events.html). */
+.event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; margin-top: 22px; }
+.event-card { display: flex; gap: 16px; align-items: flex-start; }
+.event-date { flex: none; width: 62px; text-align: center; border-radius: 12px; background: var(--brand-800); color: #fff; padding: 8px 0; }
+.event-month { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+.event-day { display: block; font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+.event-body h3 { margin-bottom: 4px; }
+.event-meta { font-size: .88rem; }
+.event-desc { margin: 10px 0 0; font-size: .95rem; color: var(--ink-soft); }
+
+/* ── Footer (site-wide; injected from HTML/footer.html) ─────────────────── */
+.foot-panel { margin-bottom: 32px; }
+.foot-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 32px; padding: 4px 0 26px; }
+.foot-panel h4 { color: inherit; font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; margin: 0 0 12px; opacity: .85; }
+.foot-panel a { display: block; color: inherit; opacity: .8; padding: 4px 0; font-size: .94rem; }
+.foot-panel a:hover { opacity: 1; color: inherit; }
+.foot-panel .muted { color: inherit; opacity: .7; }
+.foot-brand { font-weight: 800; font-size: 1.1rem; margin-bottom: 10px; }
+.foot-base { border-top: 1px solid rgba(255,255,255,.2); padding: 18px 0 0; font-size: .85rem; }
+
+@media (max-width: 880px) {
+  .tile-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) { .foot-grid { grid-template-columns: 1fr; gap: 22px; } }

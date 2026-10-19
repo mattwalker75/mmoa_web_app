@@ -1,0 +1,26 @@
+node_modules/
+*.log
+.env
+.DS_Store
+frontend/mmoa-web-ui/node_modules/
+frontend/mmoa-web-ui/dist/
+frontend/mmoa-web-ui/.angular/
+
+# Runtime dirs written by START/STOP/RESTART (logs/app.log, tmp/app.pid)
+logs/
+tmp/
+
+# Machine-local secrets generated on first boot (session signing keys).
+# Never commit.
+local-secrets.json
+
+# Local SQLite database (rebuilt by SETUP_SQLLITE_DB.sh / auto-created on boot)
+mmoa_web_app.db
+mmoa_web_app.db-journal
+mmoa_web_app.db-wal
+mmoa_web_app.db-shm
+
+# NOTE: config.json IS tracked (the production EC2 template in
+# mmoa_web_app_infra clones the repo and seds the committed, scrubbed copy).
+# Keep real keys out of the committed file — see Docs/configuration.md
+# "Secrets" for the local git guard.

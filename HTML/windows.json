@@ -1,0 +1,66 @@
+{
+  "_comment": [
+    "Window (panel) styling for the website home page. Each home-page section",
+    "is rendered inside a 'window'; this file controls that window's chrome —",
+    "background, outline (border) and size — separately from its content (the",
+    "matching <section>.html file). Edited by the admin console, picked up",
+    "live on the next page load (no rebuild or restart needed).",
+    "",
+    "Each window inherits 'defaults' and overrides only what it sets. Per-window",
+    "keys: hero, mission, events, involved, footer.",
+    "",
+    "Field guide:",
+    "  background  any CSS color (#rrggbb, rgb()/rgba(), name). Use \"none\" or",
+    "              \"transparent\" for no fill at all.",
+    "  borderColor outline color. Use \"transparent\" for an invisible outline that",
+    "              still reserves its space, or set borderWidth:0 to remove it.",
+    "  borderWidth outline thickness in px (0 = no outline).",
+    "  borderStyle solid | dashed | dotted | none.",
+    "  width       window width as a percent of the page (1-100).",
+    "  maxWidth    hard cap on width in px (the window never grows past this).",
+    "  radius      corner roundness in px.",
+    "  shadow      true/false — drop shadow under the window.",
+    "  textColor   override text color (e.g. \"#ffffff\" on a dark window). null = inherit.",
+    "  showTag     true/false — show the little corner label.",
+    "  tag         the corner label text.",
+    "  style       escape hatch: an object of raw CSS property -> value applied",
+    "              last, so it can override any field above and reach properties",
+    "              that have no named field. Use real CSS names, e.g.:",
+    "              \"style\": { \"opacity\": \"0.85\", \"backdrop-filter\": \"blur(6px)\",",
+    "              \"background\": \"linear-gradient(120deg,#13294b,#1f3f73)\" }"
+  ],
+  "defaults": {
+    "background": "#ffffff",
+    "borderColor": "#e2e6ee",
+    "borderWidth": 1,
+    "borderStyle": "solid",
+    "width": 90,
+    "maxWidth": 1100,
+    "radius": 18,
+    "shadow": true,
+    "textColor": null,
+    "showTag": false,
+    "tag": ""
+  },
+  "windows": {
+    "hero": {
+      "textColor": "#ffffff",
+      "borderWidth": 0,
+      "style": {
+        "background": "linear-gradient(125deg, #13294b 0%, #1f3f73 100%)"
+      }
+    },
+    "mission": {},
+    "events": {
+      "background": "#f7f8fb"
+    },
+    "involved": {},
+    "footer": {
+      "textColor": "#ffffff",
+      "borderWidth": 0,
+      "style": {
+        "background": "#13294b"
+      }
+    }
+  }
+}

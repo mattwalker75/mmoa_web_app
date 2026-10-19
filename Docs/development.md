@@ -1,0 +1,83 @@
+# Development
+
+## Layout
+
+```
+app.js                         # Express entry: headers, sessions, API, images, SPA
+config.json                    # Runtime config (tracked, scrubbed) — config/appConfig.js loads it
+config/appConfig.js            # Defaults for every key + load/save
+config/localSecrets.js         # Session keys in local-secrets.json (gitignored)
+db/database.js                 # SQLite/MySQL abstraction + boot-time migrations
+middleware/                    # auth (bcrypt), inputLimits, loginLockout
+helpers/
+  email.js                     # outbound email (console/SMTP/SES)
+  maintenance.js               # maintenance-mode middleware (reads maintenance.json)
+  tokens.js                    # random tokens
+routes/api.js                  # JSON API consumed by the SPA (mounted at /api)
+views/escapeHtml.js            # HTML escaping (leaf module)
+scripts/
+  create-admin.js              # bootstrap an organizer (admin) account
+  maintenance.sh               # --enable/--disable/--status (the console runs this)
+  git-hooks/                   # pre-commit secret scan + install.sh
+HTML/                          # admin-editable website sections, windows.json, images/
+setup_sqlite_db.sql            # SQLite schema (auto-applied on first run)
+setup_mysql_db.sql             # MySQL schema
+START_APP.sh STOP_APP.sh RESTART_APP.sh SETUP_SQLLITE_DB.sh SETUP_MYSQL_DB.sh
+frontend/mmoa-web-ui/          # Angular SPA (the entire UI)
+Docs/                          # this documentation
+```
+
+## Lifecycle scripts
+
+| Script | Behavior |
+|---|---|
+| `./START_APP.sh` | `cd`s to the repo; `npm install` if `node_modules/` is missing; `npm run build:frontend` if `frontend/mmoa-web-ui/dist` is missing; refuses to start a second copy; launches `nohup node app.js >> logs/app.log 2>&1 &`, writes `tmp/app.pid`, and verifies the process stayed up. `--force-rebuild` reinstalls + rebuilds first. |
+| `./STOP_APP.sh` | Stops the PID in `tmp/app.pid` **and** whatever listens on the configured port (default 3004): SIGTERM, up to 10 s grace, then SIGKILL. Exit 0 if already stopped. |
+| `./RESTART_APP.sh` | STOP, 2 s pause, START (options forwarded to START). |
+| `./SETUP_SQLLITE_DB.sh` | Deletes and rebuilds `mmoa_web_app.db` from `setup_sqlite_db.sql`. |
+| `./SETUP_MYSQL_DB.sh` | Drops + recreates the MySQL database and user from `config.json`, loads `setup_mysql_db.sql`. |
+
+## Two ways to run the front end
+
+The Express server serves the **built** Angular output from
+`frontend/mmoa-web-ui/dist/mmoa-web-ui/browser`. So:
+
+- **Iterating on the UI:** `npm run dev:frontend` (Angular dev server on :4200,
+  live reload; `/api` and `/content` are proxied to :3004 — keep the backend
+  running).
+- **Prod-like:** `npm run build:frontend` (or `./START_APP.sh --force-rebuild`),
+  then restart and reload the browser.
+
+| You changed… | What's needed |
+|---|---|
+| Angular template / component / SCSS | rebuild (or automatic under `ng serve`) |
+| `package.json` dependencies | `npm install`, then build |
+| server code (`app.js`, `routes/`, `helpers/`) | restart |
+| `config.json` | restart |
+| `HTML/*` (website content) | nothing — picked up on the next page load |
+
+## ⚠️ The critical-CSS gotcha (important)
+
+Angular's production build defaults to **inlining critical CSS** and loading the
+full stylesheet via a `media="print"` + `onload` swap. That swap is an inline
+event handler, which this app's CSP (`script-src 'self'`) blocks — and in
+headless screenshots it may not fire at all — so class-based styles would never
+apply. `frontend/mmoa-web-ui/angular.json` sets
+`optimization.styles.inlineCritical = false`, so the stylesheet is
+render-blocking and reliable. **Keep it off.**
+
+`app.js` serves static assets with `maxAge: '1h'`; production builds are
+content-hashed so this is safe, but hard-reload if a CSS change doesn't show.
+
+## Testing
+
+- **Email in dev:** `email.transport: "console"` prints messages (and links) to
+  `logs/app.log`. With `email.showLinksInBrowser: true` the SPA also shows the
+  link on screen, so signup → verify → sign in and forgot → reset can be
+  completed in the browser alone.
+- **curl:** the JSON API takes `Content-Type: application/json`; keep a cookie
+  jar (`-c jar -b jar`) for signed-in calls. `trustProxy: 1` means a test can
+  vary `X-Forwarded-For` to exercise the per-IP lockout / rate limits without
+  locking out its own address.
+- **Maintenance:** `./scripts/maintenance.sh --enable --title "…" --message "…"`
+  → `/` and `/api/*` answer 503 (`/health` stays 200); `--disable` restores.

@@ -1,0 +1,90 @@
+{
+  "_comment": "mmoa_web_app runtime configuration. TRACKED in git on purpose (mmoa_web_app_infra clones the repo and seds this file into shape), so it must stay SCRUBBED: secrets stay blank here and are set only on the machine that runs the app (or from the admin console's Web App Settings). Every key and its default lives in config/appConfig.js; keys starting with '_' are comments. Restart the app after editing.",
+  "port": 3004,
+  "appTitle": "Mission Men of Anna",
+  "appSubtitle": "",
+  "orgName": "Mission Men of Anna Inc",
+  "_comment_publicBaseUrl": "Absolute base URL baked into emailed verification / password-reset links. Must be the URL members actually reach (https://<domain> behind the ALB in production).",
+  "publicBaseUrl": "http://localhost:3004",
+  "server": {
+    "_comment": "TLS for the app itself. Behind the ALB keep ssl=false (the ALB terminates TLS) and trustProxy=1 so client IPs come from X-Forwarded-For.",
+    "ssl": false,
+    "keyPath": "",
+    "certPath": "",
+    "trustProxy": 1
+  },
+  "_comment_sessionKeys": "Leave blank: real keys are generated once into local-secrets.json (gitignored). Set two long random strings here only to manage keys centrally.",
+  "sessionKeyMode": "auto-generate",
+  "sessionKeys": [
+    "",
+    ""
+  ],
+  "sessionMaxAgeHours": 8,
+  "passwordMinLength": 8,
+  "passwordResetTokenTtlHours": 2,
+  "allowMemberRegistration": true,
+  "_comment_maintenanceCommand": "Run by the admin console (cwd = this app's directory) with --enable --title --message / --disable / --status.",
+  "maintenanceCommand": "./scripts/maintenance.sh",
+  "database": {
+    "_comment": "engine = sqlite (default; file mmoa_web_app.db in the app directory, rebuilt by SETUP_SQLLITE_DB.sh) or mysql (run SETUP_MYSQL_DB.sh / setup_mysql_db.sql first). Set mysql.password only on the server.",
+    "engine": "sqlite",
+    "sqlite": {
+      "filename": "mmoa_web_app.db"
+    },
+    "mysql": {
+      "host": "localhost",
+      "port": 3306,
+      "database": "mmoa_web_app",
+      "user": "mmoa_app",
+      "password": "",
+      "connectionLimit": 10
+    }
+  },
+  "email": {
+    "_comment": "Outbound only. transport = console (prints to logs/app.log) | smtp (smtp block) | ses (aws block credentials + region). showLinksInBrowser is TESTING / TEMPORARY: it is ON in this committed file because email is not set up yet — it hands verification and reset links straight to the browser, so anyone who knows an email address can verify it or reset its password. Turn it OFF as soon as real email works.",
+    "transport": "console",
+    "from": "noreply@example.org",
+    "replyTo": "info@example.org",
+    "showLinksInBrowser": true,
+    "smtp": {
+      "host": "",
+      "port": 587,
+      "secure": false,
+      "user": "",
+      "password": ""
+    }
+  },
+  "aws": {
+    "_comment": "Used ONLY for SES email (email.transport = ses). This app never creates or modifies AWS resources. In AWS set runningInAws=true and leave the keys blank (EC2 instance profile). Never commit real keys.",
+    "region": "us-east-1",
+    "runningInAws": false,
+    "accessKeyId": "",
+    "secretAccessKey": ""
+  },
+  "security": {
+    "verificationLinkExpiresMinutes": 60,
+    "rateLimiting": {
+      "_comment": "auth = signup / forgot-password / resend-verification / reset-password check, per client IP.",
+      "auth": {
+        "windowSeconds": 300,
+        "maxAttempts": 10
+      }
+    },
+    "loginLockout": {
+      "_comment": "After maxFailures failed logins from one IP, or against one account, that axis is locked for lockoutSeconds. A successful login clears both.",
+      "enabled": true,
+      "maxFailures": 10,
+      "lockoutSeconds": 300
+    },
+    "headers": {
+      "enabled": true,
+      "contentSecurityPolicy": true
+    },
+    "session": {
+      "_comment": "secure: null = auto (Secure cookie whenever served over HTTPS or publicBaseUrl is https).",
+      "secure": null,
+      "httpOnly": true,
+      "sameSite": "strict"
+    }
+  }
+}

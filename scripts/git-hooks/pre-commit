@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# scripts/git-hooks/pre-commit — refuse to commit live secrets.
+#
+# config.json is tracked on purpose (the production EC2 template clones the
+# repo and seds the committed copy), so the committed version must stay
+# scrubbed. This hook blocks a commit whose STAGED config.json — or any other
+# staged file — contains something that looks like a real credential.
+#
+# Install (once per clone):   ./scripts/git-hooks/install.sh
+# Bypass knowingly:           git commit --no-verify
+set -euo pipefail
+
+patterns=(
+  'AKIA[0-9A-Z]{16}'                 # AWS access key id
+  'github_pat_[A-Za-z0-9_]{20,}'     # GitHub fine-grained PAT
+  'ghp_[A-Za-z0-9]{30,}'             # GitHub classic PAT
+  'sk_live_[A-Za-z0-9]{10,}'         # Stripe live secret key
+  'sk_test_[A-Za-z0-9]{10,}'         # Stripe test secret key (still a secret)
+  'whsec_[A-Za-z0-9]{10,}'           # Stripe webhook signing secret
+  '"secretAccessKey": *"[A-Za-z0-9/+=]{30,}"'
+)
+
+fail=0
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  case "$file" in
+    *.png|*.jpg|*.jpeg|*.gif|*.ico|*.db|*.lock|package-lock.json) continue ;;
+  esac
+  staged="$(git show ":$file" 2>/dev/null || true)"
+  for p in "${patterns[@]}"; do
+    if printf '%s' "$staged" | grep -Eq "$p"; then
+      echo "pre-commit: $file contains what looks like a live secret (pattern: $p)" >&2
+      fail=1
+    fi
+  done
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: refusing to commit. Scrub the value (use a <PLACEHOLDER>) or, if you are sure, commit with --no-verify." >&2
+  exit 1
+fi
