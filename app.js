@@ -61,8 +61,17 @@ if (appConfig.server && appConfig.server.trustProxy) {
 }
 
 // ── security headers ───────────────────────────────────────────────────
+// Is the site reached over HTTPS — served directly (server.ssl) or behind a
+// TLS-terminating proxy (publicBaseUrl https)? Helmet's defaults add HSTS and
+// the CSP `upgrade-insecure-requests` directive, which make the browser
+// rewrite every request — scripts, styles, even redirects — to https://. On a
+// plain-HTTP origin (local dev, the HTTP-only ALB) nothing answers there, so
+// the SPA never loads (white screen). Send both only when HTTPS is real.
+const serveHttps = !!(appConfig.server && appConfig.server.ssl) ||
+  /^https:\/\//i.test(appConfig.publicBaseUrl || '');
 if (appConfig.security && appConfig.security.headers && appConfig.security.headers.enabled !== false) {
   app.use(helmet({
+    strictTransportSecurity: serveHttps,
     contentSecurityPolicy: appConfig.security.headers.contentSecurityPolicy === false ? false : {
       directives: {
         defaultSrc: ["'self'"],
@@ -83,7 +92,9 @@ if (appConfig.security && appConfig.security.headers && appConfig.security.heade
         // <base> tag to same-origin, and forbid being framed (clickjacking).
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        frameAncestors: ["'self'"]
+        frameAncestors: ["'self'"],
+        // null removes helmet's default directive (see serveHttps above).
+        upgradeInsecureRequests: serveHttps ? [] : null
       }
     },
     crossOriginEmbedderPolicy: false
@@ -116,10 +127,9 @@ console.log(`[session] signing keys from ${sessionKeySource}`);
 
 const sessionSecCfg = (appConfig.security && appConfig.security.session) || {};
 // secure cookie: honor an explicit true/false; otherwise auto-enable whenever
-// the server is serving HTTPS (server.ssl) or the public URL is https — so a
-// production HTTPS deploy gets a Secure cookie even if the flag was left unset.
-const serveHttps = !!(appConfig.server && appConfig.server.ssl) ||
-  /^https:\/\//i.test(appConfig.publicBaseUrl || '');
+// the site is served over HTTPS (serveHttps, defined with the security
+// headers above) — so a production HTTPS deploy gets a Secure cookie even if
+// the flag was left unset.
 const secureCookie = sessionSecCfg.secure === true ? true
   : sessionSecCfg.secure === false ? false
   : serveHttps;
