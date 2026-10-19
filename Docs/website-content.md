@@ -1,37 +1,36 @@
 # Website content (admin-editable)
 
-The home page is assembled from **editable HTML fragment files** in the repo's
-**`HTML/`** directory — one per section — plus images in **`HTML/images/`** and
-window styling in **`HTML/windows.json`**. The admin console (Web App Website)
-edits these; **no rebuild or restart is needed** (changes show on the next page
-load).
+Most of the site is data-driven (events, raffles, board, the "Need Help?"
+directory — all in the database, managed in the admin console). The remaining
+**copy** lives in editable HTML fragment files in **`HTML/`**, one per
+section, plus site photos in **`HTML/images/`**. The admin console (Web App
+Website) edits these; **no rebuild or restart is needed** (changes show on the
+next page load).
 
-## Files (the 5 sections)
+## Sections (the 5 keys)
 
-| File | Section | Anchor |
+| Key / file | Where it appears | Contents |
 |---|---|---|
-| `HTML/hero.html` | Top banner | `#hero` |
-| `HTML/mission.html` | Mission statement | `#mission` |
-| `HTML/events.html` | Events **heading only** — the event cards below it come from the database (`events` table, managed in the console) | `#events` |
-| `HTML/involved.html` | Get involved / join | `#involved` |
-| `HTML/footer.html` | Site-wide footer (every page) | — |
+| `hero` → `HTML/hero.html` | Home, top banner | Background photo (`<img class="hero-bg">`) + `.hero-inner` with kicker, `<h1>`, lede and the two CTA buttons |
+| `about` → `HTML/about.html` | Home "story" block **and** top of `/about` | Story intro: the `.marker` accent line + paragraphs. No heading (the page provides it). |
+| `help` → `HTML/help.html` | `/about` → "How you can help" | `<ul class="help-list">` items (`<strong>` title + text) and `<p class="tagline">`. No heading. |
+| `partner` → `HTML/partner.html` | `/partner` (Partner With Us) body | Lede, `<h2>` sub-sections, `.help-list`, `<ol class="steps">`. The page adds its own H1 and the sign-up call-to-action card. |
+| `footer` → `HTML/footer.html` | Every page | `.foot-org` (name, EIN, phone, ©) + `<nav class="foot-links">`. The **"Need help now? 911 · 988 · 211" box is built into the SPA**, not this file, so it can't be edited away. |
 
-Each file holds the **inner HTML** of that section. Use the site's CSS classes so
-it matches the design: `hero`, `hero-cta`, `eyebrow`, `lede`, `muted`, `center`,
-`narrow`, `center-block`, `tile-grid` + `card tile`, `btn btn-primary` /
-`btn-ghost` / `btn-dark` / `btn-light`, `small-print`, and in the footer
-`foot-grid`, `foot-brand`, `foot-base`.
+The v1 sections (`mission`, `events`, `involved`) and `HTML/windows.json`
+(per-section window chrome) are **gone** in v2 — the dark design has fixed
+section styling. The admin console's windows editor was removed with it.
 
-The content is injected as **trusted** HTML (first-party, admin-only) — never
-put untrusted user input in these files. Scripts won't run anyway (the CSP
+Each file holds **inner HTML**. Use the site's global CSS classes so it matches
+the design: `kicker`, `lede`, `marker`, `prose`, `btn btn-primary` /
+`btn-outline` / `btn-dark` / `btn-lg`, `cta-row`, `help-list`, `tagline`,
+`steps`, `muted`, `soft`; in the hero `hero-bg` / `hero-inner`; in the footer
+`foot-org`, `foot-brand`, `foot-copy`, `foot-links`.
+
+Links to site pages (`href="/events"`) navigate inside the app without a
+reload. The content is injected as **trusted** HTML (first-party, admin-only) —
+never put untrusted input in these files. Scripts won't run anyway (the CSP
 allows only the app's own script files).
-
-## Images
-
-Put image files in **`HTML/images/`** and reference them as
-**`/content/images/<filename>`**, e.g. `<img src="/content/images/food-drive.jpg" alt="…">`.
-Remote `https:` images also work. An optional `HTML/images/logo.png` is shown on
-the maintenance screen.
 
 ## Tokens
 
@@ -41,42 +40,40 @@ These `{{tokens}}` are filled by the server (HTML-escaped):
 |---|---|
 | `{{appTitle}}` | `config.appTitle` (Mission Men of Anna) |
 | `{{orgName}}` | `config.orgName` (Mission Men of Anna Inc) |
+| `{{phone}}` | `config.site.phone` — `(214) 763-5546` |
+| `{{phoneTel}}` | the same phone as digits for `tel:` links — `+12147635546` |
+| `{{ein}}` | `config.site.ein` — `33-4035685` |
+| `{{facebookUrl}}` | `config.site.facebookUrl` |
 | `{{year}}` | current year |
 | `{{eventCount}}` | number of upcoming published events |
 
 Unknown tokens are left as-is.
 
-## Window styling (`HTML/windows.json`)
+## Images
 
-Each section is drawn inside a **window** (panel). The window's *chrome* —
-background, outline, size, label — is configured in `windows.json`, separately
-from the content. It has a `defaults` block and a `windows` block keyed by
-section (`hero`, `mission`, `events`, `involved`, `footer`); each window inherits
-`defaults` and overrides only the keys it sets.
+- **Site photos** live in `HTML/images/` (committed) and are served at
+  `/content/images/<file>`: `carshow.jpg` (hero), `booth.jpg`,
+  `volunteers.jpg`, `fundraiser.jpg`, `legion.jpg` (home photo grid),
+  `group.jpg`, `angeltree.jpg` (About). The SPA refers to these names, so
+  replace a photo by overwriting the file with the same name.
+- **Logo:** the header shows a built-in stand-in eagle-with-M-shield SVG. Drop
+  `HTML/images/logo.png` (or `logo.svg`) and the header uses that file instead
+  (`GET /api/site` → `logoUrl`); `logo.png` is also shown on the maintenance
+  screen.
+- **Uploaded images** (event flyers/covers, raffle photos, nonprofit photos,
+  board photos) are NOT here — they live in `uploads/` (gitignored), see
+  [database.md](database.md#uploaded-images).
 
-| Field | Meaning |
-|---|---|
-| `background` | any CSS color; `"none"` / `"transparent"` for no fill |
-| `borderColor` | outline color; `"transparent"` = invisible but still spaced |
-| `borderWidth` | outline thickness in px (`0` = no outline) |
-| `borderStyle` | `solid` \| `dashed` \| `dotted` \| `none` |
-| `width` | window width as a percent of the page (1–100) |
-| `maxWidth` | hard px cap on width |
-| `radius` | corner radius in px |
-| `shadow` | `true`/`false` — drop shadow |
-| `textColor` | override text color (e.g. `"#ffffff"` on a dark window); `null` = inherit |
-| `showTag` | `true`/`false` — show the corner label |
-| `tag` | corner label text |
-| `style` | escape hatch: object of **raw CSS property → value**, applied last |
+## Not in a section file
 
-`style` is deep-merged (defaults' `style` + the window's `style`). Malformed JSON
-or missing keys fall back to built-in defaults, so a bad edit never breaks the
-page — the affected windows just render with default chrome.
+The core values (with descriptions), the "What we've done" impact list and the
+photo captions are fixed copy in `frontend/mmoa-web-ui/src/app/core/site-content.ts`
+(edit + rebuild). The "Need Help?" / directory UI strings are in
+`core/strings.ts` (kept together so a Spanish translation can be added later).
 
 ## How it works
 
-`GET /api/content` reads the section files **and `windows.json`** (both
-mtime-cached → live but cheap), substitutes tokens, and returns
-`{ sections: { hero, mission, events, involved, footer }, windows: { … } }` with
-every window fully merged against defaults. The SPA injects each section and
-applies its window config as inline styles (`core/window-style.ts`).
+`GET /api/site` reads the section files (mtime-cached → live but cheap),
+substitutes tokens, and returns
+`{ appTitle, orgName, phone, ein, facebookUrl, logoUrl, sections: { hero, about, help, partner, footer } }`.
+(`GET /api/content` is kept as a legacy alias returning `{ sections }`.)

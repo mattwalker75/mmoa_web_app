@@ -1,19 +1,33 @@
 # mmoa_web_app
 
-The public website and member accounts for **Mission Men of Anna Inc**, a
-501(c)(3) nonprofit men's group in Anna, Texas:
+The public website for **Mission Men of Anna Inc** (MMoA), a 501(c)(3)
+nonprofit men's group in Anna, Texas (EIN 33-4035685):
 
 > Our mission is to come together as men in service of those in need by
 > organizing events to provide essential resources to support the community
 > and the people of Anna.
 
-Visitors read about the mission and upcoming events; members sign up (with
-email verification), sign in, and see their profile and upcoming events.
+The site is the **source of truth for MMoA's events and raffles** (Facebook just
+shares the links):
+
+- **Events** — upcoming/past, detail pages with flyer viewer, maps, calendar
+  links, registration (e.g. Stripe Payment Link), beneficiaries, share buttons
+  and Open Graph tags so Facebook previews show the flyer.
+- **Raffles** — prize photos, ticket info, claim rules; tickets are sold in
+  person only; the winning ticket is posted after the drawing.
+- **About** (story, values, board, impact) and **Partner With Us**.
+- **"Need Help?"** — anyone can search verified local nonprofits by need, city
+  and keyword (no account, nothing saved), with 911 / 988 / 211 always shown.
+- **Nonprofit portal** — logins exist only for other nonprofits. They sign up
+  with their EIN, verify their email, and maintain their directory profile
+  (services, cities, what to bring, contacts, up to 5 photos, per-field
+  Public/Hidden). MMoA verifies them in the admin console before they appear.
 
 It's an **Express JSON API** with an **Angular single-page app** front end
 (`frontend/mmoa-web-ui/`), ported from the car-show control plane. All
-administration — members, events, website content, settings, maintenance mode —
-lives in the separate **mmoa_admin_console**, which edits this app's files and
+administration — nonprofit verification, events, raffles, board, categories &
+cities, website content, settings, maintenance mode — lives in the separate
+**mmoa_admin_console**, which edits this app's files and
 database directly. By design, this app exposes no admin surface and never
 creates or modifies AWS resources (its only optional AWS use is SES email).
 
@@ -32,23 +46,32 @@ creates or modifies AWS resources (its only optional AWS use is SES email).
 ```
 
 The database (`mmoa_web_app.db`) is created automatically on first boot from
-`setup_sqlite_db.sql`; `./SETUP_SQLLITE_DB.sh` wipes and rebuilds it. The app
-runs detached: logs in `logs/app.log`, PID in `tmp/app.pid`.
+`setup_sqlite_db.sql` (schema + reference seeds: service categories, cities,
+board roles); `./SETUP_SQLLITE_DB.sh` wipes and rebuilds it. An older DB gains
+the new tables automatically on boot. The app runs detached: logs in
+`logs/app.log`, PID in `tmp/app.pid`. Uploaded images go to `uploads/`
+(gitignored).
 
 Open http://localhost:3004.
 
 Optional, once per clone:
 
 ```bash
-# (optional) a ready-to-use, already-verified member — the DB auto-creates on first run
-node scripts/create-member.js jdoe jdoe@example.org 'First' 'Last' 'somepassword'
+# (optional) a ready-to-use nonprofit login (email already verified; org unverified)
+node scripts/create-member.js pantry pantry@example.org 'First' 'Last' 'somepassword' --org "Anna Food Pantry"
+
+# (optional) demo content, clearly labelled [Sample]; undo with --remove
+node scripts/seed-sample-data.js
+
+# unit tests (markdown-lite renderer + XSS cases)
+npm test
 
 # local git guards that keep real keys out of commits
 ./scripts/git-hooks/install.sh
 ```
 
 > While iterating on the UI, run `npm run dev:frontend` (Angular dev server with
-> live reload on :4200, proxying `/api` and `/content` to :3004) instead of
+> live reload on :4200, proxying `/api`, `/content` and `/uploads` to :3004) instead of
 > rebuilding each time. See `Docs/development.md`.
 
 ## Email isn't set up yet — the testing bypass
@@ -74,9 +97,9 @@ keep secrets out of the committed copy. See `Docs/configuration.md`.
 | [Docs/architecture.md](Docs/architecture.md) | System overview, components, the no-admin-surface principle, the shared DB |
 | [Docs/configuration.md](Docs/configuration.md) | Full `config.json` reference + secrets handling |
 | [Docs/development.md](Docs/development.md) | Build/run workflow, scripts, the Angular `inlineCritical` gotcha, testing |
-| [Docs/database.md](Docs/database.md) | Schema, SQLite vs MySQL, migrations |
+| [Docs/database.md](Docs/database.md) | Schema (directory, events, raffles, board), uploads, SQLite vs MySQL, migrations |
 | [Docs/email.md](Docs/email.md) | Email transports (console / SMTP / SES), verification, the testing bypass |
-| [Docs/website-content.md](Docs/website-content.md) | The admin-editable website (`HTML/` section files, images, tokens, windows) |
+| [Docs/website-content.md](Docs/website-content.md) | The admin-editable website (`HTML/` sections, photos, logo, tokens) |
 
 ## License
 

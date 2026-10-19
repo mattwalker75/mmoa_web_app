@@ -23,16 +23,18 @@ CREATE DATABASE IF NOT EXISTS mmoa_web_app
 USE mmoa_web_app;
 
 -- The app stores UTC (db/database.js pins its sessions to +00:00); do the same
--- here so the seed timestamps below are read as UTC, not the server's zone.
+-- here so any timestamps written by this script are read as UTC.
 SET time_zone = '+00:00';
 
 -- ----------------------------------------------------------------------------
 -- USERS
 -- ----------------------------------------------------------------------------
--- Every account is a member — there are no roles. Administration happens in
---   the admin console (mmoa_admin_console), whose operators are NOT users here.
+-- Logins exist ONLY for partner nonprofits: one account per organization
+--   (organizations.user_id); first_name / last_name are the primary contact
+--   person. There are no roles. Administration happens in the admin console
+--   (mmoa_admin_console), whose operators are NOT users here.
 -- email_verified_at: NULL until the user clicks the link in their verification
---   email. Members cannot log in while NULL (scripts/create-member.js and the
+--   email. Accounts cannot log in while NULL (scripts/create-member.js and the
 --   admin console can create accounts already verified).
 -- is_active: 0 = disabled from the admin console (login refused, sessions end).
 -- login_name is case-insensitive through the utf8mb4_unicode_ci collation.
@@ -113,44 +115,225 @@ CREATE TABLE IF NOT EXISTS login_lockouts (
     INDEX idx_login_lockouts_locked (locked_until_ms)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ----------------------------------------------------------------------------
--- EVENTS
--- ----------------------------------------------------------------------------
--- Community events shown on the website (GET /api/events) and on the member
--- dashboard. Managed from the admin console. Only is_published = 1 rows are
--- public. starts_at / ends_at are UTC; ends_at NULL = a single point in time.
--- "Upcoming" = ends_at (else starts_at) not yet past.
--- ----------------------------------------------------------------------------
+-- ============================================================================
+-- NONPROFIT DIRECTORY ("Need Help?")
+-- ============================================================================
+-- Logins (users) exist ONLY for other nonprofits. Each login owns exactly one
+-- organizations row (created with it at signup). Only rows with
+-- verification_status = 'verified' AND is_listed = 1 are ever shown publicly,
+-- and then only the fields named in public_fields (name is always public; ein
+-- is never public). MMoA verifies the EIN from the admin console.
+-- Column notes: see setup_sqlite_db.sql (same tables, same columns).
+-- (TEXT columns can't carry a DEFAULT on older MySQL, so public_fields /
+-- how_to_buy are VARCHAR here; the app also fills them in when NULL.)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS organizations (
+    org_id              INT AUTO_INCREMENT PRIMARY KEY,
+    user_id             INT NOT NULL UNIQUE,
+    name                VARCHAR(200) NOT NULL,
+    ein                 VARCHAR(10) NULL,
+    address_line1       VARCHAR(200) NULL,
+    address_line2       VARCHAR(200) NULL,
+    city                VARCHAR(100) NULL,
+    state               VARCHAR(40) NULL DEFAULT 'TX',
+    zip                 VARCHAR(10) NULL,
+    phone               VARCHAR(40) NULL,
+    public_email        VARCHAR(255) NULL,
+    website_url         VARCHAR(500) NULL,
+    facebook_url        VARCHAR(500) NULL,
+    instagram_url       VARCHAR(500) NULL,
+    other_social_url    VARCHAR(500) NULL,
+    description_md      TEXT NULL,
+    hours               TEXT NULL,
+    what_to_bring       TEXT NULL,
+    public_fields       VARCHAR(1000) NULL DEFAULT '["address","phone","public_email","website_url","facebook_url","instagram_url","other_social_url","description","hours","what_to_bring","contacts","images","service_cities","categories"]',
+    is_listed           TINYINT(1) NOT NULL DEFAULT 1,
+    verification_status VARCHAR(16) NOT NULL DEFAULT 'unverified',
+    verified_at         TIMESTAMP NULL,
+    verified_by         VARCHAR(100) NULL,
+    verification_note   TEXT NULL,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP NULL,
+    CONSTRAINT chk_org_status CHECK (verification_status IN ('unverified','verified','rejected')),
+    FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    INDEX idx_orgs_status (verification_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS org_contacts (
+    contact_id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id     INT NOT NULL,
+    name       VARCHAR(200) NULL,
+    role       VARCHAR(200) NULL,
+    email      VARCHAR(255) NULL,
+    phone      VARCHAR(40) NULL,
+    is_public  TINYINT(1) NOT NULL DEFAULT 0,
+    sort       INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE,
+    INDEX idx_org_contacts_org (org_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS org_images (
+    image_id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id   INT NOT NULL,
+    path     VARCHAR(255) NOT NULL,
+    alt      VARCHAR(300) NULL,
+    sort     INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE,
+    INDEX idx_org_images_org (org_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    slug        VARCHAR(60) NOT NULL UNIQUE,
+    name        VARCHAR(100) NOT NULL,
+    sort        INT NOT NULL DEFAULT 0,
+    is_active   TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS org_categories (
+    org_id      INT NOT NULL,
+    category_id INT NOT NULL,
+    PRIMARY KEY (org_id, category_id),
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories (category_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cities (
+    city_id   INT AUTO_INCREMENT PRIMARY KEY,
+    name      VARCHAR(100) NOT NULL UNIQUE,
+    sort      INT NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS org_cities (
+    org_id  INT NOT NULL,
+    city_id INT NOT NULL,
+    PRIMARY KEY (org_id, city_id),
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE,
+    FOREIGN KEY (city_id) REFERENCES cities (city_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- EVENTS, RAFFLES, BOARD (managed in the admin console)
+-- Column notes: see setup_sqlite_db.sql. starts_at carries an explicit
+-- DEFAULT (see the TIMESTAMP gotcha at the top); the app always supplies it.
+-- ============================================================================
+
 CREATE TABLE IF NOT EXISTS events (
-    event_id     INT AUTO_INCREMENT PRIMARY KEY,
-    title        VARCHAR(200) NOT NULL,
-    description  TEXT NULL,
-    location     VARCHAR(255) NULL,
-    starts_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ends_at      TIMESTAMP NULL,
-    is_published TINYINT(1) NOT NULL DEFAULT 1,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP NULL,
+    event_id           INT AUTO_INCREMENT PRIMARY KEY,
+    slug               VARCHAR(120) NOT NULL UNIQUE,
+    title              VARCHAR(200) NOT NULL,
+    summary            VARCHAR(300) NULL,
+    description_md     TEXT NULL,
+    starts_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ends_at            TIMESTAMP NULL,
+    venue_name         VARCHAR(200) NULL,
+    address            VARCHAR(300) NULL,
+    city               VARCHAR(100) NULL,
+    map_url            VARCHAR(1000) NULL,
+    flyer_path         VARCHAR(255) NULL,
+    cover_path         VARCHAR(255) NULL,
+    registration_url   VARCHAR(1000) NULL,
+    registration_label VARCHAR(100) NULL DEFAULT 'Register & pay',
+    registration_note  VARCHAR(300) NULL,
+    beneficiaries_text TEXT NULL,
+    is_published       TINYINT(1) NOT NULL DEFAULT 0,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP NULL,
     INDEX idx_events_starts (starts_at),
     INDEX idx_events_published (is_published)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed a few sample published events so the website isn't empty on a fresh
--- install. Placeholder content — edit or delete them from the admin console.
--- Guarded so re-running this file never duplicates them. (Times are UTC.)
-INSERT INTO events (title, description, location, starts_at, ends_at, is_published)
+CREATE TABLE IF NOT EXISTS event_beneficiaries (
+    beneficiary_id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id       INT NOT NULL,
+    org_id         INT NULL,
+    name           VARCHAR(200) NULL,
+    url            VARCHAR(1000) NULL,
+    sort           INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (event_id) REFERENCES events (event_id) ON DELETE CASCADE,
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE SET NULL,
+    INDEX idx_event_beneficiaries_event (event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS raffles (
+    raffle_id            INT AUTO_INCREMENT PRIMARY KEY,
+    slug                 VARCHAR(120) NOT NULL UNIQUE,
+    title                VARCHAR(200) NOT NULL,
+    prize_description_md TEXT NULL,
+    flyer_path           VARCHAR(255) NULL,
+    total_tickets        INT NULL,
+    ticket_price_text    VARCHAR(200) NULL,
+    drawing_at           TIMESTAMP NULL,
+    drawing_location     VARCHAR(200) NULL,
+    how_to_buy           VARCHAR(2000) NULL DEFAULT 'Tickets are sold in person only — from any MMoA member or at our booth at upcoming events. Texas law doesn''t allow raffle tickets to be sold online.',
+    claim_requirements   TEXT NULL,
+    claim_preset         VARCHAR(16) NULL,
+    beneficiary_org_id   INT NULL,
+    beneficiary_text     VARCHAR(500) NULL,
+    status               VARCHAR(16) NOT NULL DEFAULT 'draft',
+    winning_ticket       VARCHAR(60) NULL,
+    is_published         TINYINT(1) NOT NULL DEFAULT 0,
+    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP NULL,
+    CONSTRAINT chk_raffle_status CHECK (status IN ('draft','open','closed','drawn')),
+    FOREIGN KEY (beneficiary_org_id) REFERENCES organizations (org_id) ON DELETE SET NULL,
+    INDEX idx_raffles_status (status, is_published)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS raffle_images (
+    image_id  INT AUTO_INCREMENT PRIMARY KEY,
+    raffle_id INT NOT NULL,
+    path      VARCHAR(255) NOT NULL,
+    alt       VARCHAR(300) NULL,
+    sort      INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (raffle_id) REFERENCES raffles (raffle_id) ON DELETE CASCADE,
+    INDEX idx_raffle_images_raffle (raffle_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS board_members (
+    board_id         INT AUTO_INCREMENT PRIMARY KEY,
+    role_title       VARCHAR(100) NOT NULL,
+    role_description VARCHAR(500) NULL,
+    person_name      VARCHAR(200) NULL,
+    photo_path       VARCHAR(255) NULL,
+    sort             INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- SEEDS (guarded: re-running this file never duplicates them)
+-- ============================================================================
+INSERT IGNORE INTO categories (slug, name, sort) VALUES
+    ('food', 'Food', 1),
+    ('housing', 'Housing & shelter', 2),
+    ('utilities', 'Utilities & bills', 3),
+    ('clothing', 'Clothing & household items', 4),
+    ('transportation', 'Transportation', 5),
+    ('health', 'Health care', 6),
+    ('mental-health', 'Mental health', 7),
+    ('substance-use', 'Substance use', 8),
+    ('financial', 'Financial help', 9),
+    ('jobs', 'Jobs & job training', 10),
+    ('education', 'Education & school supplies', 11),
+    ('family', 'Childcare & family', 12),
+    ('seniors', 'Seniors', 13),
+    ('veterans', 'Veterans', 14),
+    ('disabilities', 'Disability services', 15),
+    ('legal', 'Legal help', 16),
+    ('safety', 'Domestic violence & safety', 17);
+
+INSERT IGNORE INTO cities (name, sort) VALUES
+    ('Anna', 1), ('Melissa', 2), ('Van Alstyne', 3), ('Howe', 4), ('Weston', 5),
+    ('Westminster', 6), ('Blue Ridge', 7), ('Princeton', 8), ('McKinney', 9), ('Sherman', 10);
+
+INSERT INTO board_members (role_title, role_description, sort)
 SELECT * FROM (
-    SELECT 'Community Food Drive' AS title,
-           'Help us collect and sort non-perishable food for local families in need. Drop off donations or volunteer for a shift.' AS description,
-           'Anna, Texas' AS location,
-           '2027-03-13 15:00:00' AS starts_at, '2027-03-13 19:00:00' AS ends_at, 1 AS is_published
-    UNION ALL SELECT 'Neighborhood Yard Work Day',
-           'We team up to help seniors and neighbors with yard work and small repairs. Bring gloves — we will bring the tools.',
-           'Anna, Texas',
-           '2027-04-17 14:00:00', '2027-04-17 18:00:00', 1
-    UNION ALL SELECT 'Back-to-School Supply Giveaway',
-           'Backpacks and school supplies for Anna students. Come pick up supplies, or join us to pack and hand them out.',
-           'Anna, Texas',
-           '2027-08-07 15:00:00', '2027-08-07 18:00:00', 1
+    SELECT 'Chair' AS role_title, 'Leads the organization''s meetings and sets the agenda' AS role_description, 1 AS sort
+    UNION ALL SELECT 'Vice Chair', 'Supports the Chair and covers for the Chair in his absence', 2
+    UNION ALL SELECT 'Secretary', 'Manages documentation, communications, and meeting records', 3
+    UNION ALL SELECT 'Treasurer', 'Oversees financial matters and ensures fiscal accountability', 4
+    UNION ALL SELECT 'Community Chair', 'Engages with the community to foster partnerships and support', 5
+    UNION ALL SELECT 'Sergeant at Arms', 'Maintains order during meetings and ensures adherence to bylaws', 6
 ) AS seed
-WHERE NOT EXISTS (SELECT 1 FROM events);
+WHERE NOT EXISTS (SELECT 1 FROM board_members);

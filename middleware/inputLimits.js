@@ -17,7 +17,26 @@ const FIELD_CAPS = {
   confirm_password: 256,
   token: 128,
   appTitle: 100,
-  appSubtitle: 200
+  appSubtitle: 200,
+  // Nonprofit signup + portal profile (routes/api.js re-validates each one;
+  // nested contacts[] entries are checked there, not here).
+  org_name: 200,
+  name: 200,
+  ein: 20,
+  address_line1: 200,
+  address_line2: 200,
+  city: 100,
+  state: 40,
+  zip: 10,
+  phone: 32,
+  public_email: 255,
+  website_url: 500,
+  facebook_url: 500,
+  instagram_url: 500,
+  other_social_url: 500,
+  description_md: 5000,
+  hours: 1000,
+  what_to_bring: 2000
 };
 
 function enforceInputLimits(req, res, next) {

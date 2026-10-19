@@ -10,6 +10,12 @@ frontend/mmoa-web-ui/.angular/
 logs/
 tmp/
 
+# Uploaded images (uploads/{events,raffles,orgs,board}/<random>.<ext>) are
+# runtime data written by the portal and the admin console — never commit
+# them. The directory itself is kept via uploads/.gitkeep.
+uploads/*
+!uploads/.gitkeep
+
 # Machine-local secrets generated on first boot (session signing keys).
 # Never commit.
 local-secrets.json

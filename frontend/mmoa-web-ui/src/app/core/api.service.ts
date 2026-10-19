@@ -1,7 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { PublicConfig, User, ContentResponse, EventsResponse, LinkSentResponse } from './models';
+import {
+  PublicConfig, User, SiteInfo, EventItem, Raffle, BoardMember, Category, City,
+  SearchResponse, PublicOrg, PortalPayload, OrgImage, LinkSentResponse
+} from './models';
 
 /**
  * Thin wrapper over the Express JSON API. Every call uses
@@ -14,10 +17,55 @@ export class ApiService {
   private http = inject(HttpClient);
   private opts = { withCredentials: true };
 
-  // Public
+  // Public content
   config(): Observable<PublicConfig> { return this.http.get<PublicConfig>('/api/public/config', this.opts); }
-  content(): Observable<ContentResponse> { return this.http.get<ContentResponse>('/api/content', this.opts); }
-  events(): Observable<EventsResponse> { return this.http.get<EventsResponse>('/api/events', this.opts); }
+  site(): Observable<SiteInfo> { return this.http.get<SiteInfo>('/api/site', this.opts); }
+  events(when: 'upcoming' | 'past' = 'upcoming'): Observable<{ when: string; events: EventItem[] }> {
+    return this.http.get<{ when: string; events: EventItem[] }>('/api/events', { ...this.opts, params: { when } });
+  }
+  event(slug: string): Observable<{ event: EventItem }> {
+    return this.http.get<{ event: EventItem }>('/api/events/' + encodeURIComponent(slug), this.opts);
+  }
+  raffles(status: 'current' | 'past' = 'current'): Observable<{ status: string; raffles: Raffle[] }> {
+    return this.http.get<{ status: string; raffles: Raffle[] }>('/api/raffles', { ...this.opts, params: { status } });
+  }
+  raffle(slug: string): Observable<{ raffle: Raffle }> {
+    return this.http.get<{ raffle: Raffle }>('/api/raffles/' + encodeURIComponent(slug), this.opts);
+  }
+  board(): Observable<{ board: BoardMember[] }> { return this.http.get<{ board: BoardMember[] }>('/api/board', this.opts); }
+
+  // "Need Help?" directory
+  directoryMeta(): Observable<{ categories: Category[]; cities: City[] }> {
+    return this.http.get<{ categories: Category[]; cities: City[] }>('/api/directory/meta', this.opts);
+  }
+  directorySearch(q: { category?: string; city?: string; q?: string }): Observable<SearchResponse> {
+    let params = new HttpParams();
+    if (q.category) params = params.set('category', q.category);
+    if (q.city) params = params.set('city', q.city);
+    if (q.q) params = params.set('q', q.q);
+    return this.http.get<SearchResponse>('/api/directory/search', { ...this.opts, params });
+  }
+  directoryOrg(id: number): Observable<{ org: PublicOrg }> {
+    return this.http.get<{ org: PublicOrg }>('/api/directory/orgs/' + id, this.opts);
+  }
+
+  // Nonprofit portal
+  portalOrg(): Observable<PortalPayload> { return this.http.get<PortalPayload>('/api/portal/org', this.opts); }
+  savePortalOrg(body: Record<string, unknown>): Observable<PortalPayload> {
+    return this.http.put<PortalPayload>('/api/portal/org', body, this.opts);
+  }
+  uploadOrgImage(file: Blob, alt: string): Observable<{ ok: boolean; image: OrgImage; images: OrgImage[] }> {
+    const fd = new FormData();
+    fd.append('image', file, 'photo.jpg');
+    if (alt) fd.append('alt', alt);
+    return this.http.post<{ ok: boolean; image: OrgImage; images: OrgImage[] }>('/api/portal/org/images', fd, this.opts);
+  }
+  deleteOrgImage(id: number): Observable<{ ok: boolean; images: OrgImage[] }> {
+    return this.http.delete<{ ok: boolean; images: OrgImage[] }>('/api/portal/org/images/' + id, this.opts);
+  }
+  orderOrgImages(order: number[], alt: Record<string, string>): Observable<{ ok: boolean; images: OrgImage[] }> {
+    return this.http.put<{ ok: boolean; images: OrgImage[] }>('/api/portal/org/images/order', { order, alt }, this.opts);
+  }
 
   // Auth
   me(): Observable<{ user: User | null }> { return this.http.get<{ user: User | null }>('/api/auth/me', this.opts); }

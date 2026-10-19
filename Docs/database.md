@@ -29,40 +29,127 @@ comparisons are fine on both.
 MySQL note: on servers with `explicit_defaults_for_timestamp = OFF` (MySQL 5.7,
 MariaDB < 10.10) the first `TIMESTAMP NOT NULL` column of a table silently gets
 `ON UPDATE CURRENT_TIMESTAMP`. `events.starts_at` and the tokens' `expires_at`
-therefore declare an explicit `DEFAULT`, which suppresses it.
+therefore declare an explicit `DEFAULT`, which suppresses it. MySQL `TEXT`
+columns can't carry a `DEFAULT` on older servers, so `organizations.public_fields`
+and `raffles.how_to_buy` are `VARCHAR` there (same content).
 
 ## Shared with the admin console
 
-The database is **shared** with `mmoa_admin_console` (Members, Locked Users,
-Data Browser, Reports, Backup/Restore). Keep changes **additive** and keep both
-SQL files in sync.
+The database is **shared** with `mmoa_admin_console` (Nonprofits, Events,
+Raffles, Categories & Cities, Board, Locked Users, Data Browser, Reports,
+Backup/Restore). Keep changes **additive** and keep both SQL files in sync.
 
 ## Tables
 
-- **`users`** — accounts; every account is a member (no roles).
-  `login_name` and `email` unique (login name case-insensitive on both engines);
-  `phone_number` optional; `is_active` (0 = disabled); `email_verified_at` (NULL
-  = unverified — members can't sign in); `created_at`, `last_login_at`.
+All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
+"Paths" are relative to `uploads/` (see below).
+
+**Accounts & security**
+- **`users`** — logins. They exist **only for partner nonprofits** (one login
+  per organization); `first_name` / `last_name` are the primary contact person.
+  `login_name` and `email` unique (login name case-insensitive on both
+  engines); `phone_number` optional; `is_active` (0 = disabled);
+  `email_verified_at` (NULL = can't sign in); `created_at`, `last_login_at`.
 - **`email_verification_tokens`** / **`password_reset_tokens`** — single-use
   tokens (`token` unique, `expires_at`, `consumed_at`), cascade-deleted with the
   user. Consumed / long-expired rows are pruned every 15 minutes.
 - **`login_lockouts`** — brute-force state per `scope` (`ip` | `account`) and
   `scope_key`: `fail_count`, `locked_until_ms` (epoch ms), `last_failed_at`.
-  Resolved rows are pruned every 15 minutes.
-- **`events`** — `title`, `description`, `location`, `starts_at`, `ends_at`
-  (NULL = single point in time), `is_published`, `created_at`, `updated_at`.
-  Only published rows are public; "upcoming" = `ends_at` (else `starts_at`) not
-  yet past. Three sample 2027 events are seeded (only into an empty table).
+
+**"Need Help?" directory**
+- **`organizations`** — 1:1 with `users` (`user_id` UNIQUE, CASCADE). `name`,
+  `ein` (`'XX-XXXXXXX'`, never public, editable by the org only while
+  unverified), `address_line1/2`, `city`, `state` (default `TX`), `zip`,
+  `phone`, `public_email`, `website_url`, `facebook_url`, `instagram_url`,
+  `other_social_url`, `description_md` (markdown-lite), `hours`,
+  `what_to_bring` (newline list), `public_fields` (JSON array of the keys shown
+  publicly — `address, phone, public_email, website_url, facebook_url,
+  instagram_url, other_social_url, description, hours, what_to_bring, contacts,
+  images, service_cities, categories`; default all), `is_listed` (0 = org hid
+  its profile), `verification_status` (`unverified` | `verified` | `rejected`,
+  CHECK), `verified_at`, `verified_by` (console admin), `verification_note`
+  (console-only; not shown to the org), `created_at`, `updated_at`.
+  **Public = `verified` AND `is_listed = 1`, and then only `public_fields`.**
+  Hidden categories / cities / text are also not used to match searches.
+- **`org_contacts`** — `contact_id`, `org_id` (CASCADE), `name`, `role`,
+  `email`, `phone`, `is_public` (0/1), `sort`.
+- **`org_images`** — `image_id`, `org_id` (CASCADE), `path` (`orgs/…`), `alt`,
+  `sort`. Max 5 per org (enforced by the API).
+- **`categories`** — `category_id`, `slug` (UNIQUE), `name`, `sort`,
+  `is_active`. 17 seeded (food … safety).
+- **`org_categories`** — (`org_id`, `category_id`) PK, both CASCADE.
+- **`cities`** — `city_id`, `name` (UNIQUE), `sort`, `is_active`. 10 seeded
+  (Anna, Melissa, Van Alstyne, Howe, Weston, Westminster, Blue Ridge,
+  Princeton, McKinney, Sherman).
+- **`org_cities`** — (`org_id`, `city_id`) PK, both CASCADE.
+
+**Events, raffles, board** (managed in the console)
+- **`events`** — `event_id`, `slug` (UNIQUE; the public URL `/events/<slug>`),
+  `title`, `summary` (≤200), `description_md`, `starts_at`, `ends_at` (NULL
+  ok), `venue_name`, `address`, `city`, `map_url` (blank → Google Maps search
+  built from venue/address/city), `flyer_path`, `cover_path` (`events/…`),
+  `registration_url` (any https URL, e.g. a Stripe Payment Link),
+  `registration_label` (default `Register & pay`), `registration_note` (e.g.
+  `$25 entry`), `beneficiaries_text`, `is_published` (default 0),
+  `created_at`, `updated_at`. Public = published; "upcoming" = `starts_at` no
+  more than 12 h ago (sorted soonest first); "past" = the rest, newest first,
+  50 max.
+- **`event_beneficiaries`** — `beneficiary_id` (PK), `event_id` (CASCADE),
+  `org_id` (NULL, `ON DELETE SET NULL`), `name`, `url`, `sort`. A row with
+  `org_id` links to that org's directory profile only while the org is public;
+  the org's name is used as a fallback only then too.
+- **`raffles`** — `raffle_id`, `slug` (UNIQUE; `/raffles/<slug>`), `title`,
+  `prize_description_md`, `flyer_path` (`raffles/…`), `total_tickets`,
+  `ticket_price_text`, `drawing_at`, `drawing_location`, `how_to_buy` (default:
+  in-person-only / Texas-law text), `claim_requirements` (newline list),
+  `claim_preset` (`firearm` | `standard` | `custom`), `beneficiary_org_id`
+  (NULL, SET NULL), `beneficiary_text`, `status` (`draft` | `open` | `closed`
+  | `drawn`, CHECK), `winning_ticket`, `is_published`, `created_at`,
+  `updated_at`. Public = published AND not draft; "current" = open/closed,
+  "past" = drawn; `winning_ticket` is only sent once drawn.
+- **`raffle_images`** — `image_id`, `raffle_id` (CASCADE), `path`
+  (`raffles/…`), `alt`, `sort` (prize photos, up to 8 — console-enforced).
+- **`board_members`** — `board_id`, `role_title`, `role_description`,
+  `person_name` (NULL until filled), `photo_path` (`board/…`), `sort`. The six
+  roles (Chair … Sergeant at Arms) are seeded.
+
+Seeds (categories, cities, board roles) are guarded — re-running a setup file
+never duplicates them. No sample events/raffles/orgs are seeded; for a demo
+run `node scripts/seed-sample-data.js` (and `--remove` to undo).
+
+## Uploaded images
+
+Files live in `<appDir>/uploads/{events,raffles,orgs,board}/<16 random hex>.<jpg|png|webp>`
+(gitignored; `uploads/.gitkeep` keeps the folder) and are served read-only at
+`/uploads/…` (no index, no dotfiles, 1 h cache; misses are plain 404s). The DB
+stores the relative path (`orgs/3f9c0a1b2c3d4e5f.jpg`); the API refuses any
+stored path not matching that pattern. Only JPEG/PNG/WebP are accepted,
+checked by magic bytes, max `uploads.maxMb` (8 MB). Browsers resize before
+upload (≤1600 px long edge, JPEG q≈0.82). Deleting a row/image deletes its file
+(best effort) — the portal does this for org photos; the console for the rest
+(and for every image of an org/account it deletes, since the DB cascade can't
+remove files).
 
 ## Migrations
 
-`db/database.js` runs two idempotent lists on every boot, on both engines:
-`COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored)
-and `TABLE_MIGRATIONS` (`CREATE … IF NOT EXISTS`, one DDL list per engine).
-When you add a column or table: add it to **both** `setup_*.sql` files (fresh
-installs) **and** to the matching list (existing installs). Note
-`SETUP_MYSQL_DB.sh` grants the app user only `SELECT, INSERT, UPDATE, DELETE`,
-so on MySQL apply schema changes as an admin.
+`db/database.js` runs, on every boot and on both engines:
+
+1. **Schema v2 tables** (`SCHEMA_V2_TABLES`): each table that is *missing* is
+   created — DDL + indexes + its seed rows read straight out of
+   `setup_sqlite_db.sql` / `setup_mysql_db.sql`, so there's no second copy to
+   keep in sync. Existing tables are never touched (a category the console
+   deleted isn't resurrected). Before that, a v1 `events` table (old column set
+   `title/description/location`, no `slug`) is **dropped** and recreated —
+   it only ever held the placeholder seed events.
+2. `TABLE_MIGRATIONS` (indexes, `CREATE … IF NOT EXISTS`, one list per engine).
+3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored).
+
+When you add a column: add it to **both** `setup_*.sql` files **and**
+`COLUMN_MIGRATIONS`. A new table: add it to both files and append its name to
+`SCHEMA_V2_TABLES`. Note `SETUP_MYSQL_DB.sh` grants the app user only
+`SELECT, INSERT, UPDATE, DELETE`, so on MySQL the boot migration can't create
+tables (it logs a warning) — apply schema changes as an admin (or re-run
+`setup_mysql_db.sql`, which is idempotent).
 
 SQLite **CHECK** constraints can't be `ALTER`ed; to change one, rebuild the
 table (rename, recreate, `INSERT … SELECT`, drop, recreate indexes) inside a

@@ -21,6 +21,15 @@ const defaults = {
   // Legal name — used in emails and the {{orgName}} website token.
   orgName: 'Mission Men of Anna Inc',
   publicBaseUrl: 'http://localhost:3004',
+  // Public contact facts shown in the header/footer and served by GET
+  // /api/site (also the {{phone}} / {{ein}} / {{facebookUrl}} website tokens).
+  site: {
+    phone: '(214) 763-5546',
+    ein: '33-4035685',
+    facebookUrl: 'https://www.facebook.com/missionmenofanna'
+  },
+  // Uploaded images (uploads/<kind>/…): largest accepted file, in MB.
+  uploads: { maxMb: 8 },
   // trustProxy defaults to 1 (trust the first proxy hop): this app is
   // internet-facing behind an ALB/nginx, so req.ip must come from
   // X-Forwarded-For or the per-IP login lockout + rate limiter would key off

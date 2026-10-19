@@ -34,14 +34,15 @@ human.
 
 Subjects are prefixed with `appTitle`, e.g. `Mission Men of Anna: Verify your email address`.
 A failed send is logged and never fails the request (the account is already
-created; the member can use "Resend email").
+created; they can use "Resend email").
 
 ## Verification flow
 
-`POST /api/auth/signup` creates the `member`, inserts an
+`POST /api/auth/signup` creates the nonprofit's login (and its unverified
+organization), inserts an
 `email_verification_tokens` row and emails the link. `POST /api/auth/verify`
 consumes the token and stamps `users.email_verified_at`.
-`POST /api/auth/resend-verification` issues a fresh link. Members can't sign in
+`POST /api/auth/resend-verification` issues a fresh link. Logins can't sign in
 until verified (login answers 403 `code: 'unverified'` and the SPA sends them to
 the "Check your email" page).
 

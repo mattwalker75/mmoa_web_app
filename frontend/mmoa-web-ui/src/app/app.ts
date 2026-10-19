@@ -1,67 +1,55 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { firstValueFrom } from 'rxjs';
-import { NavComponent } from './layout/nav.component';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
+import { SiteHeaderComponent } from './layout/site-header.component';
+import { SiteFooterComponent } from './layout/site-footer.component';
 import { AuthService } from './core/auth.service';
-import { ApiService } from './core/api.service';
-import { WindowConfig } from './core/models';
-import { windowStyle } from './core/window-style';
+import { SiteService } from './core/site.service';
+import { S } from './core/strings';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NavComponent],
+  imports: [RouterOutlet, SiteHeaderComponent, SiteFooterComponent],
   template: `
     @if (booted()) {
-      <app-nav />
-      <main><router-outlet /></main>
-      <footer>
-        <div class="panel foot-panel" [style]="style('footer')">
-          @if (win('footer')?.showTag && win('footer')?.tag) { <span class="panel-tag">{{ win('footer')?.tag }}</span> }
-          <div [innerHTML]="footer()"></div>
+      <a class="skip-link" href="#main" (click)="skip($event)">Skip to content</a>
+      @if (needHelp()) {
+        <div class="emergency-strip" role="note" aria-label="Emergency numbers">
+          <div class="container">
+            <span><a href="tel:911">{{ S.emergency911 }}</a></span>
+            <span><a href="tel:988">{{ S.crisis988 }}</a></span>
+            <span><a href="tel:211">{{ S.services211 }}</a></span>
+          </div>
         </div>
-      </footer>
+      }
+      <app-site-header />
+      <main id="main" tabindex="-1"><router-outlet /></main>
+      <app-site-footer [needHelp]="needHelp()" />
     } @else {
-      <div class="boot"><div class="spinner dark"></div></div>
+      <div class="loading" style="min-height:100vh"><span class="spinner light big" role="status" aria-label="Loading"></span></div>
     }
   `,
-  styles: [`
-    main { min-height: calc(100vh - 70px); }
-    .boot { min-height: 100vh; display: grid; place-items: center; }
-    .spinner.dark { border-color: rgba(19,41,75,.2); border-top-color: var(--brand-700); width: 30px; height: 30px; }
-  `]
+  styles: [`main { min-height: calc(100vh - 300px); } main:focus { outline: none; }`]
 })
 export class App {
   private auth = inject(AuthService);
-  private api = inject(ApiService);
-  private sanitizer = inject(DomSanitizer);
+  private router = inject(Router);
   booted = this.auth.ready; // set by bootstrap(), which runs as an app initializer
-  private footerHtml = signal<string>('');
-  private windows = signal<Record<string, WindowConfig>>({});
+  needHelp = signal(false);
+  S = S;
 
   constructor() {
-    this.loadFooter();
+    inject(SiteService).load();
+    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
+      this.needHelp.set(this.router.url.startsWith('/need-help'));
+    });
   }
 
-  /** Admin-authored footer HTML (HTML/footer.html, served via /api/content).
-   *  Trusted: first-party content written by the admin console, never user input. */
-  footer(): SafeHtml {
-    const html = this.footerHtml();
-    return html ? this.sanitizer.bypassSecurityTrustHtml(html) : '';
-  }
-
-  /** Resolved window chrome for a section (undefined until /api/content loads). */
-  win(key: string): WindowConfig | undefined {
-    return this.windows()[key];
-  }
-
-  style(key: string): Record<string, string> { return windowStyle(this.win(key)); }
-
-  private async loadFooter() {
-    try {
-      const res = await firstValueFrom(this.api.content());
-      this.footerHtml.set((res.sections && res.sections['footer']) || '');
-      this.windows.set(res.windows || {});
-    } catch { /* footer renders empty if content API is unavailable */ }
+  /** In-page skip link without touching the router's URL. */
+  skip(e: Event) {
+    e.preventDefault();
+    const m = document.getElementById('main');
+    m?.focus();
+    m?.scrollIntoView();
   }
 }

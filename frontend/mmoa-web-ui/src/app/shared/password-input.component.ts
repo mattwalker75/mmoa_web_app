@@ -11,13 +11,14 @@ import { Component, EventEmitter, Input, Output, model } from '@angular/core';
   template: `
     <div class="input-group">
       <input class="input"
+        [attr.id]="inputId || null"
         [type]="show() ? 'text' : 'password'"
         [value]="value"
         (input)="onInput($event)"
         [attr.placeholder]="placeholder || null"
         [attr.autocomplete]="autocomplete"
         [attr.minlength]="minlength || null"
-        [attr.aria-label]="placeholder || 'Password'" />
+        [attr.aria-label]="inputId ? null : (placeholder || 'Password')" />
       <button type="button" class="input-affix" (click)="show.set(!show())"
         [attr.aria-label]="show() ? 'Hide password' : 'Show password'">
         {{ show() ? 'Hide' : 'Show' }}
@@ -31,6 +32,8 @@ export class PasswordInputComponent {
   @Input() placeholder = '';
   @Input() autocomplete = 'new-password';
   @Input() minlength?: number;
+  /** id for the <input>, so a <label for="…"> names it. */
+  @Input() inputId = '';
   show = model(false);
 
   onInput(e: Event) {

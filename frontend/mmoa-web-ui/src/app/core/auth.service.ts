@@ -34,7 +34,7 @@ export class AuthService {
   setUser(u: User | null) { this.user.set(u); }
 
   /** Re-read the session user — e.g. after the admin console edited the
-   *  profile — so the dashboard stays right. */
+   *  profile — so the portal stays right. */
   async refreshUser(): Promise<void> {
     try {
       const me = await firstValueFrom(this.api.me());

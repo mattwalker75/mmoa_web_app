@@ -2,10 +2,14 @@
 
 ## What it is
 
-`mmoa_web_app` is the **public-facing** half of the Mission Men of Anna site.
-Visitors read the mission and upcoming events; members sign up, verify their
-email, sign in, and see a simple member home (profile, change password,
-upcoming events). It is a port of the car-show control plane with the
+`mmoa_web_app` is the **public-facing** half of the Mission Men of Anna site
+and the **source of truth for events and raffles** (Facebook posts just link
+here). Visitors see upcoming events (with flyers, maps, registration links and
+Facebook-friendly Open Graph previews), current raffles (sold in person only),
+the About and Partner With Us pages, and **"Need Help?"** — a search of local
+nonprofits that MMoA has verified. Logins exist **only for other nonprofits**:
+they sign up with their EIN, verify their email and maintain their directory
+profile in the **portal** (choosing per field what is public). It is a port of the car-show control plane with the
 car-show-only domain (deployments, AWS provisioning, payments, reviews,
 subdomains) removed.
 
@@ -15,15 +19,15 @@ subdomains) removed.
 ┌─────────────────────────────┐          ┌──────────────────────────────┐
 │ Angular SPA                 │  HTTPS   │ Express server (app.js)      │
 │ frontend/mmoa-web-ui/       │ ───────▶ │  /health   liveness          │
-│ (home, events, signup,      │  /api    │  /api/*    JSON API          │
-│  login, member home)        │ ◀─────── │  /content/images/*           │
+│ (home, events, raffles,     │  /api    │  /api/*    JSON API          │
+│  need-help, portal, …)      │ ◀─────── │  /content/images/*, /uploads/*│
 └─────────────────────────────┘          │  serves the built SPA        │
                                          │  helpers/email (console/     │──▶ SMTP / AWS SES
                                          │   SMTP/SES, outbound only)   │
                                          └───────────────┬──────────────┘
                                                          │
                                        mmoa_web_app.db (SQLite) or MySQL
-                                       HTML/ (website content), config.json,
+                                       HTML/ (website content), uploads/, config.json,
                                        maintenance.json, logs/app.log
                                                          │  (shared)
                                          ┌───────────────┴──────────────┐
@@ -39,7 +43,13 @@ subdomains) removed.
   routes.
 - **Express server** (`app.js`) — security headers, sessions (`mw_session`),
   rate limiting, the maintenance-mode gate, the JSON API at `/api`
-  (`routes/api.js`), website images at `/content/images`, and the SPA.
+  (`routes/api.js` — auth; `routes/public.js` — site, events, raffles, board,
+  directory; `routes/portal.js` — the nonprofit's profile), website images at
+  `/content/images`, uploaded images at `/uploads`, the SPA, and Open Graph tag
+  injection for `/events/:slug` and `/raffles/:slug`.
+- **Helpers** — `markdownLite.js` (safe markdown-lite → HTML; the console keeps
+  a verbatim copy — keep them identical), `orgs.js` (directory visibility rules
+  in one place), `uploads.js` (image store), `sqlTime.js`.
 - **Email** (`helpers/email.js`) — outbound-only, console/SMTP/SES. See [email.md](email.md).
 - **Database** (`db/database.js`) — a thin dual-engine (SQLite/MySQL) wrapper
   exposing `getAsync` / `allAsync` / `runAsync` / `transaction`. See [database.md](database.md).
@@ -53,9 +63,21 @@ subdomains) removed.
 |---|---|---|
 | GET | `/health` | Liveness only (outside `/api`, before logging/sessions/maintenance). `{status:'ok', service:'web-app', uptime}` |
 | GET | `/api/public/config` | `appTitle`, `appSubtitle`, `orgName`, `allowMemberRegistration`, `passwordMinLength`, `showLinksInBrowser` |
-| GET | `/api/content` | `{ sections: {hero, mission, events, involved, footer}, windows: {…} }` — see [website-content.md](website-content.md) |
-| GET | `/api/events` | Published events: upcoming (soonest first), then up to 20 past (newest first); `upcomingCount` |
-| POST | `/api/auth/signup` | Creates a `member`, emails a verification link (`devLink` too when the bypass is on) |
+| GET | `/api/site` | `{ appTitle, orgName, phone, ein, facebookUrl, logoUrl, sections: {hero, about, help, partner, footer} }` (tokens applied) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
+| GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. Published only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
+| GET | `/api/events/:slug` | `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 if unpublished |
+| GET | `/api/raffles?status=current\|past` | `{ status, raffles: [Raffle] }`. current = open/closed, past = drawn; published only; ≤50 |
+| GET | `/api/raffles/:slug` | `{ raffle }` + `prize_html`, `images: [{url, alt}]`, `how_to_buy`, `claim_requirements: []`, `claim_preset`. `winning_ticket` only when drawn. 404 for drafts/unpublished |
+| GET | `/api/board` | `{ board: [{board_id, role_title, role_description, person_name, photo_url}] }` |
+| GET | `/api/directory/meta` | `{ categories: [{category_id, slug, name}], cities: [{city_id, name}] }` (active only) |
+| GET | `/api/directory/search?category=<slug>&city=<name\|any>&q=<text>` | `{ category, city, q, count, results: [PublicOrg] }` — verified + listed only, public fields only; 400 for an unknown category/city |
+| GET | `/api/directory/orgs/:id` | `{ org: PublicOrg }`, or 404 unless verified + listed |
+| POST | `/api/auth/signup` | `{ org_name, ein, first_name, last_name, email, login_name, password, confirm_password }` → creates the login **and** its organization (unverified) in one transaction, emails a verification link (`devLink` too when the bypass is on). EIN: 9 digits, `12-3456789` or `123456789` |
+| GET | `/api/portal/org` | Signed in + verified email. `{ org: PrivateOrg (incl. hidden fields + verification_status), preview: PublicOrg, isPublic, account, options: {categories, cities, publicFieldKeys, maxImages} }` |
+| PUT | `/api/portal/org` | Any subset of the profile fields + `public_fields[]`, `is_listed`, `contacts[]` (≤10), `categories[]` (slugs), `city_ids[]`; keys not sent are left alone. EIN changes refused once reviewed. Returns the GET payload + `message` |
+| POST | `/api/portal/org/images` | multipart, field `image` (+ optional `alt`); JPEG/PNG/WebP by magic bytes, ≤8 MB, ≤5 per org → `201 { image, images }` |
+| DELETE | `/api/portal/org/images/:id` | Own photos only; deletes row + file → `{ images }` |
+| PUT | `/api/portal/org/images/order` | `{ order: [image_id…], alt?: {"<id>": "text"} }` → `{ images }` |
 | POST | `/api/auth/login` | `identifier` (login name or email) + `password`; lockout + DUMMY_HASH timing |
 | POST | `/api/auth/logout` | Clears the session |
 | GET | `/api/auth/me` | Current user or `null` (re-reads the row) |
@@ -71,17 +93,31 @@ for unknown accounts (no timing oracle), the per-IP + per-account login lockout
 (`login_lockouts`), per-IP rate limits on the signup/email endpoints, every
 authenticated call re-reading the user (deactivated / deleted / password
 changed elsewhere → session dropped), and single-use tokens whose expiry is
-parsed engine-agnostically and fails closed.
+parsed engine-agnostically and fails closed. New in v2: the portal looks the
+org up by the session's `user_id` only (no client-supplied org ids), uploads
+are magic-byte checked and size-capped, user markdown is rendered by
+`markdownLite` (escape first), stored image paths must match
+`<kind>/<16 hex>.<ext>`, and every outbound link field is limited to
+http(s)/mailto.
+
+Open Graph: `GET /events/<slug>` and `/raffles/<slug>` (page loads, not
+`/api`) return `index.html` with `<title>`, `og:title/description/url/image`
+and `twitter:card` injected (absolute URLs from `publicBaseUrl`; flyer → cover
+→ first photo → `carshow.jpg`), so Facebook previews show the event. Unknown
+or unpublished slugs get the plain index with status 404.
 
 ## The no-admin-surface principle
 
 **This app exposes no administrative capability.** There are no admin pages,
-no admin API, and no user-management endpoints, and no roles — every account is
-a member. Everything administrative happens in
+no admin API, and no user-management endpoints, and no roles — every login
+belongs to one partner nonprofit. Verification of nonprofits, events, raffles,
+the board, categories and cities are all managed in
 **mmoa_admin_console**, which reaches this app's directory (locally, over SSH,
 or through AWS SSM) and:
 
-- edits `config.json`, `HTML/*.html`, `HTML/windows.json` and `HTML/images/`;
+- edits `config.json`, `HTML/<section>.html` (hero, about, help, partner,
+  footer) and `HTML/images/`;
+- writes/deletes uploaded images in `uploads/{events,raffles,orgs,board}/`;
 - reads `logs/app.log`;
 - runs `config.maintenanceCommand` (`./scripts/maintenance.sh`) and the
   `START_APP.sh` / `STOP_APP.sh` / `RESTART_APP.sh` scripts;

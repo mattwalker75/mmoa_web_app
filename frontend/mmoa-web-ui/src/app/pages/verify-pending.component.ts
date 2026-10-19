@@ -12,27 +12,26 @@ import { DevLinkComponent } from '../shared/dev-link.component';
   template: `
     <div class="auth-wrap">
       <div class="auth-card card center rise">
-        <div style="font-size:3rem;line-height:1">📬</div>
         <h1>Check your email</h1>
         @if (email()) {
           <p class="muted">We sent a verification link to <strong>{{ email() }}</strong>.</p>
         } @else {
           <p class="muted">We sent you a verification link.</p>
         }
-        <p class="muted">Click the link in that email to activate your account, then sign in.</p>
+        <p class="muted">Click the link in that email to activate your login, then sign in and fill out your organization's profile.</p>
 
         <!-- TESTING bypass (email.showLinksInBrowser): the link, on screen. -->
         <app-dev-link [link]="devLink()" action="verify your email" />
 
         @if (msg()) { <div class="alert alert-success">{{ msg() }}</div> }
 
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px">
+        <div class="btn-row" style="justify-content:center;margin-top:8px">
           <a class="btn btn-primary" routerLink="/login">Go to sign in</a>
           <button class="btn btn-ghost" (click)="resend()" [disabled]="sending() || !email()">
-            @if (sending()) { <span class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:#333"></span> } @else { Resend email }
+            @if (sending()) { <span class="spinner light"></span> } @else { Resend email }
           </button>
         </div>
-        <p class="muted" style="margin-top:16px;font-size:.85rem">Didn't get it? Check your spam folder.</p>
+        <p class="muted small" style="margin-top:16px">Didn't get it? Check your spam folder.</p>
       </div>
     </div>
   `

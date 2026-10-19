@@ -12,14 +12,25 @@ middleware/                    # auth (bcrypt), inputLimits, loginLockout
 helpers/
   email.js                     # outbound email (console/SMTP/SES)
   maintenance.js               # maintenance-mode middleware (reads maintenance.json)
+  markdownLite.js              # safe markdown-lite renderer (console keeps a verbatim copy)
+  orgs.js                      # directory profile loading + public/private shaping
+  uploads.js                   # uploads/ image store (magic bytes, random names)
+  sqlTime.js                   # UTC timestamp helpers
   tokens.js                    # random tokens
-routes/api.js                  # JSON API consumed by the SPA (mounted at /api)
+routes/
+  api.js                       # /api: auth + mounts the two below
+  public.js                    # site sections, events, raffles, board, directory
+  portal.js                    # /api/portal: the nonprofit's own profile + photos
+test/                          # `npm test` (node --test): markdownLite + XSS cases
 views/escapeHtml.js            # HTML escaping (leaf module)
 scripts/
-  create-member.js             # bootstrap a verified member account
+  create-member.js             # bootstrap a verified nonprofit login (+ its org; --org "<name>")
+  seed-sample-data.js          # optional "[Sample]" events/raffle/orgs; --remove undoes it
+  sample/shotgun.jpg           # photo for the sample raffle only
   maintenance.sh               # --enable/--disable/--status (the console runs this)
   git-hooks/                   # pre-commit secret scan + install.sh
-HTML/                          # admin-editable website sections, windows.json, images/
+HTML/                          # admin-editable website sections (hero/about/help/partner/footer) + images/
+uploads/                       # uploaded images (gitignored; events/ raffles/ orgs/ board/)
 setup_sqlite_db.sql            # SQLite schema (auto-applied on first run)
 setup_mysql_db.sql             # MySQL schema
 START_APP.sh STOP_APP.sh RESTART_APP.sh SETUP_SQLLITE_DB.sh SETUP_MYSQL_DB.sh
@@ -43,7 +54,7 @@ The Express server serves the **built** Angular output from
 `frontend/mmoa-web-ui/dist/mmoa-web-ui/browser`. So:
 
 - **Iterating on the UI:** `npm run dev:frontend` (Angular dev server on :4200,
-  live reload; `/api` and `/content` are proxied to :3004 — keep the backend
+  live reload; `/api`, `/content` and `/uploads` are proxied to :3004 — keep the backend
   running).
 - **Prod-like:** `npm run build:frontend` (or `./START_APP.sh --force-rebuild`),
   then restart and reload the browser.
@@ -81,3 +92,19 @@ content-hashed so this is safe, but hard-reload if a CSS change doesn't show.
   locking out its own address.
 - **Maintenance:** `./scripts/maintenance.sh --enable --title "…" --message "…"`
   → `/` and `/api/*` answer 503 (`/health` stays 200); `--disable` restores.
+
+## Tests and sample data
+
+- `npm test` — unit tests (Node's built-in runner): the markdown-lite renderer,
+  including XSS strings (`<script>`, `javascript:` / `data:` links, attribute
+  break-outs).
+- `node scripts/seed-sample-data.js` — fills an empty site with clearly
+  labelled **[Sample]** content: 3 verified nonprofits (logins `sample-org-1..3`
+  with unusable random passwords), an upcoming 3rd Annual Coyote Cruisers Car &
+  Bike Show and a Chili Cook-Off, and an open shotgun raffle (photo from
+  `scripts/sample/shotgun.jpg`). Idempotent. `--remove` deletes exactly what it
+  created, including the copied image files. Never run automatically.
+- Manual directory check: sign up through the site (the devLink bypass verifies
+  the email), fill out the portal, then flip the org live with
+  `sqlite3 mmoa_web_app.db "UPDATE organizations SET verification_status='verified' WHERE org_id=1"`
+  (the console's Nonprofits page does this for real).

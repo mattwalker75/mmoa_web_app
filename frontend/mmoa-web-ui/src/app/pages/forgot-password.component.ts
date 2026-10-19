@@ -27,8 +27,8 @@ import { apiError } from '../core/errors';
           @if (error()) { <div class="alert alert-error">{{ error() }}</div> }
           <form (ngSubmit)="submit()">
             <div class="field">
-              <label>Email</label>
-              <input class="input" type="email" name="email" [(ngModel)]="email" autocomplete="email" required>
+              <label for="fp-email">Email</label>
+              <input id="fp-email" class="input" type="email" name="email" [(ngModel)]="email" autocomplete="email" required>
             </div>
             <button class="btn btn-primary btn-block" type="submit" [disabled]="loading()">
               @if (loading()) { <span class="spinner"></span> } @else { Send reset link }

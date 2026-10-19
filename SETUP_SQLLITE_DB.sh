@@ -2,7 +2,9 @@
 #
 #  Setup SQLite database for the mmoa_web_app.
 #  Wipes any existing mmoa_web_app.db and rebuilds it from
-#  setup_sqlite_db.sql (schema + sample events). ALL DATA IS LOST.
+#  setup_sqlite_db.sql (schema + reference seeds: categories, cities, board
+#  roles — no sample content). ALL DATA IS LOST. Uploaded image files in
+#  uploads/ are NOT deleted.
 #
 #  Stop the app first (./STOP_APP.sh) so it isn't holding the old file open.
 #  The app also creates the DB automatically on first boot if it is missing,

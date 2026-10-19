@@ -4,15 +4,20 @@
 //
 // Auth model: a signed cookie-session (mw_session). These endpoints answer
 // 401/403 with JSON (never redirects) so the SPA can react in-app. There is
-// NO admin surface here — members, events, website content and settings are
-// managed from the separate mmoa_admin_console, which edits this app's files
+// NO admin surface here — nonprofits, events, raffles, website content and
+// settings are managed from the separate mmoa_admin_console, which edits this app's files
 // and database directly.
 //
 // Endpoint map:
 //   GET  /api/public/config              — safe public config for the SPA
-//   GET  /api/content                    — website sections (HTML/) + window chrome
-//   GET  /api/events                     — published events, upcoming first
-//   POST /api/auth/signup                — create account, send verification email
+//   (public content — routes/public.js)
+//   GET  /api/site                       — org facts + website sections (HTML/)
+//   GET  /api/events[?when=past], /api/events/:slug
+//   GET  /api/raffles[?status=past], /api/raffles/:slug
+//   GET  /api/board
+//   GET  /api/directory/meta, /api/directory/search, /api/directory/orgs/:id
+//   (accounts — below; logins exist only for partner nonprofits)
+//   POST /api/auth/signup                — create account + organization, send verification email
 //   POST /api/auth/login                 — authenticate, set session
 //   POST /api/auth/logout                — clear session
 //   GET  /api/auth/me                    — current session user (or null)
@@ -22,6 +27,9 @@
 //   POST /api/auth/forgot-password       — issue a single-use reset link
 //   POST /api/auth/reset-password/check  — is a reset link still good? (non-consuming)
 //   POST /api/auth/reset-password        — consume a reset token, set new password
+//   (nonprofit portal — routes/portal.js; signed in + email verified)
+//   GET/PUT /api/portal/org, POST /api/portal/org/images,
+//   DELETE /api/portal/org/images/:id, PUT /api/portal/org/images/order
 //
 // email.showLinksInBrowser (TESTING / TEMPORARY): signup, resend-verification
 // and forgot-password ALSO return the emailed link as `devLink` so the flows
@@ -29,41 +37,13 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 const { hashPassword, verifyPassword } = require('../middleware/auth');
 const { checkLockout, recordFailure, resetLockout } = require('../middleware/loginLockout');
 const { newToken } = require('../helpers/tokens');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../helpers/email');
+const { normalizeEin } = require('./portal');
 
-// SQL-friendly UTC timestamp 'YYYY-MM-DD HH:MM:SS' (what SQLite
-// CURRENT_TIMESTAMP emits, and what MySQL accepts for TIMESTAMP columns).
-// All app-side writes use this instead of CURRENT_TIMESTAMP / datetime() so
-// both engines store the same UTC value.
-function sqlTime(date) {
-  return new Date(date).toISOString().replace('T', ' ').replace(/\..+/, '');
-}
-
-// Parse a SQL timestamp to epoch ms, engine-agnostically. SQLite returns a
-// 'YYYY-MM-DD HH:MM:SS' UTC string; MySQL (mysql2) returns a JS Date object.
-// A naive `new Date(row.expires_at + 'Z')` yields Invalid Date → NaN on
-// MySQL, so `Date.now() > NaN` is always false and tokens would NEVER
-// expire. Returns NaN if unparseable; callers fail closed (treat NaN as
-// expired) for security tokens.
-function parseSqlTimeMs(t) {
-  if (t == null) return NaN;
-  if (t instanceof Date) return t.getTime();
-  const s = String(t);
-  const iso = s.replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z');
-  return Date.parse(iso);
-}
-
-// Timestamp → ISO-8601 UTC string for JSON output (null when missing or
-// unparseable), so the SPA sees one format whichever engine is underneath.
-function isoOrNull(t) {
-  const ms = parseSqlTimeMs(t);
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
-}
+const { sqlTime, parseSqlTimeMs, isoOrNull } = require('../helpers/sqlTime');
 
 // A throwaway bcrypt hash compared against when the supplied login matches no
 // user, so an unknown-account response takes the same time as a wrong-password
@@ -111,6 +91,14 @@ module.exports = function (db, appConfig) {
   async function requireUser(req, res, next) {
     if (await refreshSessionUser(req)) return next();
     res.status(401).json({ error: 'Not signed in' });
+  }
+  // Portal routes: signed in AND email verified (login already refuses
+  // unverified accounts; this re-checks the live row on every call).
+  async function requireVerified(req, res, next) {
+    const s = await refreshSessionUser(req);
+    if (!s) return res.status(401).json({ error: 'Not signed in' });
+    if (!s.email_verified_at) return res.status(403).json({ error: 'Please verify your email first.', code: 'unverified' });
+    next();
   }
 
   // Minutes an email-verification link stays valid:
@@ -168,169 +156,23 @@ module.exports = function (db, appConfig) {
     });
   });
 
-  // ── Events (published only; managed in the admin console) ─────────────
-  // Upcoming = still running (ends_at, else starts_at, not yet past). Sorted
-  // in JS with parseSqlTimeMs so a value typed into the console's Data
-  // Browser in ISO form ('2027-05-01T14:00:00Z') sorts the same as the
-  // 'YYYY-MM-DD HH:MM:SS' form the seed data uses.
-  const PAST_EVENTS_LIMIT = 20;
-  async function loadPublishedEvents() {
-    const rows = await db.allAsync(
-      `SELECT event_id, title, description, location, starts_at, ends_at
-         FROM events WHERE is_published = 1`
-    );
-    const now = Date.now();
-    const events = rows.map(r => {
-      const startMs = parseSqlTimeMs(r.starts_at);
-      const endMs = parseSqlTimeMs(r.ends_at);
-      const lastMs = Number.isFinite(endMs) ? endMs : startMs;
-      return {
-        event_id: r.event_id,
-        title: r.title,
-        description: r.description || '',
-        location: r.location || null,
-        starts_at: isoOrNull(r.starts_at),
-        ends_at: isoOrNull(r.ends_at),
-        is_upcoming: Number.isFinite(lastMs) ? lastMs >= now : false,
-        _start: Number.isFinite(startMs) ? startMs : 0
-      };
-    });
-    const upcoming = events.filter(e => e.is_upcoming).sort((a, b) => a._start - b._start);
-    const past = events.filter(e => !e.is_upcoming).sort((a, b) => b._start - a._start).slice(0, PAST_EVENTS_LIMIT);
-    for (const e of events) delete e._start;
-    return { upcoming, past };
-  }
+  // ── Public content: site sections, events, raffles, board, directory ──
+  router.use(require('./public')(db, appConfig));
 
-  router.get('/events', async (req, res) => {
-    try {
-      const { upcoming, past } = await loadPublishedEvents();
-      res.json({ events: [...upcoming, ...past], upcomingCount: upcoming.length });
-    } catch (err) {
-      console.error('[api] events list failed:', err);
-      res.status(500).json({ error: 'Could not load events' });
-    }
-  });
+  // ── Nonprofit portal (signed in + email verified) ─────────────────────
+  router.use('/portal', require('./portal')(db, appConfig, { requireVerified }));
 
-  // ── Editable website content (admin-managed HTML/ files) ──────────────
-  // The home-page sections live as editable HTML fragments in HTML/. The
-  // admin console edits those files (and drops images in HTML/images/,
-  // served at /content/images/). We read each file with an mtime cache (so an
-  // edit is picked up live on the next request, with no per-request disk cost
-  // when unchanged) and substitute {{tokens}} from config + live data.
-  const CONTENT_DIR = path.join(__dirname, '..', 'HTML');
-  const CONTENT_SECTIONS = ['hero', 'mission', 'events', 'involved', 'footer'];
-  const _contentCache = {}; // section -> { mtimeMs, raw }
-
-  function readSectionRaw(section) {
-    const file = path.join(CONTENT_DIR, section + '.html');
-    let stat;
-    try { stat = fs.statSync(file); } catch (e) { return null; }
-    const cached = _contentCache[section];
-    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.raw;
-    let raw;
-    try { raw = fs.readFileSync(file, 'utf8'); } catch (e) { return null; }
-    _contentCache[section] = { mtimeMs: stat.mtimeMs, raw };
-    return raw;
-  }
-
-  async function contentTokens() {
-    let eventCount = 0;
-    try { eventCount = (await loadPublishedEvents()).upcoming.length; }
-    catch (e) { /* token falls back to 0 */ }
-    return {
-      appTitle: appConfig.appTitle || 'Mission Men of Anna',
-      orgName: appConfig.orgName || 'Mission Men of Anna Inc',
-      year: String(new Date().getFullYear()),
-      eventCount: String(eventCount)
-    };
-  }
-
-  // Token values are config/DB-derived, so they are HTML-escaped on the way
-  // in (an orgName with '&' must not break the markup around it).
-  function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-  function applyTokens(raw, tokens) {
-    return raw.replace(/\{\{(\w+)\}\}/g, (m, k) =>
-      Object.prototype.hasOwnProperty.call(tokens, k) ? escapeHtml(tokens[k]) : m);
-  }
-
-  // ── Window (panel) styling (admin-managed HTML/windows.json) ──────────
-  // Controls each section's window chrome — background, outline, size — apart
-  // from its content. Read with the same mtime cache, then defaults are merged
-  // into every window so the admin only writes the keys they want to override.
-  // Anything missing or malformed falls back to WINDOW_DEFAULTS, so a bad edit
-  // can never break the page; sections just render with the default chrome.
-  const WINDOWS_FILE = path.join(CONTENT_DIR, 'windows.json');
-  const WINDOW_DEFAULTS = {
-    background: '#ffffff', borderColor: '#e2e6ee', borderWidth: 1, borderStyle: 'solid',
-    width: 90, maxWidth: 1100, radius: 18, shadow: true, textColor: null, showTag: false, tag: '',
-    style: {} // escape hatch: arbitrary CSS property → value, applied last (overrides the above)
-  };
-  let _windowsCache = null; // { mtimeMs, config }
-
-  function readWindowsConfig() {
-    let stat;
-    try { stat = fs.statSync(WINDOWS_FILE); } catch (e) { return { defaults: {}, windows: {} }; }
-    if (_windowsCache && _windowsCache.mtimeMs === stat.mtimeMs) return _windowsCache.config;
-    let config = { defaults: {}, windows: {} };
-    try {
-      const parsed = JSON.parse(fs.readFileSync(WINDOWS_FILE, 'utf8'));
-      if (parsed && typeof parsed === 'object') {
-        config = {
-          defaults: (parsed.defaults && typeof parsed.defaults === 'object') ? parsed.defaults : {},
-          windows: (parsed.windows && typeof parsed.windows === 'object') ? parsed.windows : {}
-        };
-      }
-    } catch (e) {
-      console.error('[api] windows.json parse failed, using defaults:', e.message);
-    }
-    _windowsCache = { mtimeMs: stat.mtimeMs, config };
-    return config;
-  }
-
-  // Resolve each section to a fully-merged window config the frontend applies
-  // verbatim (defaults < file defaults < per-window overrides).
-  function resolveWindows() {
-    const { defaults, windows } = readWindowsConfig();
-    const base = { ...WINDOW_DEFAULTS, ...defaults };
-    const out = {};
-    for (const key of CONTENT_SECTIONS) {
-      const w = windows[key] || {};
-      // `style` is deep-merged (defaults' style + this window's style) so a
-      // window keeps the shared passthrough rules and adds its own; every other
-      // field is a plain last-wins override.
-      out[key] = {
-        ...base,
-        ...w,
-        style: { ...(base.style || {}), ...(w.style || {}) }
-      };
-    }
-    return out;
-  }
-
-  router.get('/content', async (req, res) => {
-    try {
-      const tokens = await contentTokens();
-      const sections = {};
-      for (const key of CONTENT_SECTIONS) {
-        const raw = readSectionRaw(key);
-        if (raw != null) sections[key] = applyTokens(raw, tokens);
-      }
-      res.json({ sections, windows: resolveWindows() });
-    } catch (err) {
-      console.error('[api] content load failed:', err);
-      res.status(500).json({ error: 'Could not load content' });
-    }
-  });
-
-  // ── Sign up ───────────────────────────────────────────────────────────
+  // ── Sign up (nonprofit) ───────────────────────────────────────────────
+  // Creates the login (users) AND its organization (unverified) in one
+  // transaction, then emails the verification link. first_name / last_name
+  // are the org's primary contact person.
   router.post('/auth/signup', async (req, res) => {
     if (appConfig.allowMemberRegistration === false) {
       return res.status(403).json({ error: 'Sign up is currently disabled' });
     }
     try {
+      const orgName = (req.body.org_name || '').trim();
+      const einRaw = (req.body.ein || '').trim();
       const loginName = (req.body.login_name || '').trim();
       const firstName = (req.body.first_name || '').trim();
       const lastName = (req.body.last_name || '').trim();
@@ -340,8 +182,15 @@ module.exports = function (db, appConfig) {
       const confirm = req.body.confirm_password || '';
       const minLen = appConfig.passwordMinLength || 8;
 
-      if (!loginName || !firstName || !lastName || !email || !password) {
+      if (!orgName || !einRaw || !loginName || !firstName || !lastName || !email || !password) {
         return res.status(400).json({ error: 'All required fields must be filled' });
+      }
+      if (orgName.length < 2 || orgName.length > 200 || /[<>]/.test(orgName)) {
+        return res.status(400).json({ error: 'Please enter your organization\'s name (2–200 characters)' });
+      }
+      const ein = normalizeEin(einRaw);
+      if (!ein) {
+        return res.status(400).json({ error: 'EIN must be 9 digits (for example 12-3456789)' });
       }
       if (!LOGIN_NAME_RE.test(loginName)) {
         return res.status(400).json({ error: 'Login name must be 3–30 characters using letters, numbers, and . _ - only' });
@@ -380,24 +229,33 @@ module.exports = function (db, appConfig) {
       }
 
       const hash = await hashPassword(password);
-      const ins = await db.runAsync(
-        `INSERT INTO users (login_name, email, first_name, last_name, phone_number, password_hash, is_active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
-        [loginName, email, firstName, lastName, phoneNumber, hash, sqlTime(Date.now())]
-      );
-      const userId = ins.lastID;
-
       const token = newToken(32);
       const expiresMinutes = verificationExpiryMinutes();
-      await db.runAsync(
-        'INSERT INTO email_verification_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?)',
-        [userId, token, sqlTime(Date.now() + expiresMinutes * 60 * 1000), sqlTime(Date.now())]
-      );
+      const now = sqlTime(Date.now());
+      // Account + organization + token together: a failure part-way leaves
+      // nothing behind (no orphan login without its org, or vice versa).
+      await db.transaction(async (tx) => {
+        const ins = await tx.runAsync(
+          `INSERT INTO users (login_name, email, first_name, last_name, phone_number, password_hash, is_active, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+          [loginName, email, firstName, lastName, phoneNumber, hash, now]
+        );
+        const userId = ins.lastID;
+        await tx.runAsync(
+          `INSERT INTO organizations (user_id, name, ein, state, verification_status, created_at, updated_at)
+           VALUES (?, ?, ?, 'TX', 'unverified', ?, ?)`,
+          [userId, orgName, ein, now, now]
+        );
+        await tx.runAsync(
+          'INSERT INTO email_verification_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?)',
+          [userId, token, sqlTime(Date.now() + expiresMinutes * 60 * 1000), now]
+        );
+      });
 
       const verifyUrl = baseUrl() + '/verify?token=' + token;
       // The account already exists at this point, so a failed send must not
       // turn into a 500 (a retry would then hit "email already exists"). Log
-      // it; the member can use "Resend email" on the next page.
+      // it; they can use "Resend email" on the next page.
       let message = 'Check your email to verify your account.';
       try {
         await sendVerificationEmail(appConfig, { to: email, firstName, verifyUrl, expiresMinutes });
@@ -713,6 +571,7 @@ module.exports = function (db, appConfig) {
   return router;
 };
 
-// Exported for scripts/tests that need the same time handling.
+// Exported for scripts/tests that need the same time handling (now kept in
+// helpers/sqlTime.js; re-exported here for older callers).
 module.exports.sqlTime = sqlTime;
 module.exports.parseSqlTimeMs = parseSqlTimeMs;

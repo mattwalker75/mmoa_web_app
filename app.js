@@ -3,12 +3,16 @@
 // Same wiring style as car_show_control_plane/app.js:
 //   1. Load config and create DB connection.
 //   2. Apply security headers, logging, body parsing, input-length cap.
-//   3. Mount the JSON API (public content + events + member auth) at /api.
-//   4. Serve the admin-editable website images from HTML/images/.
-//   5. Serve the Angular build from frontend/mmoa-web-ui/dist when present.
+//   3. Mount the JSON API (site content, events, raffles, board, the "Need
+//      Help?" directory, nonprofit auth + portal) at /api.
+//   4. Serve the admin-editable website images from HTML/images/ and the
+//      uploaded images from uploads/.
+//   5. Serve the Angular build from frontend/mmoa-web-ui/dist when present
+//      (with Open Graph tags injected on /events/:slug and /raffles/:slug).
 //
-// There is deliberately NO admin surface here: members, events, website
-// content and settings are all managed from the separate mmoa_admin_console,
+// There is deliberately NO admin surface here: nonprofits, events, raffles,
+// website content and settings are all managed from the separate
+// mmoa_admin_console,
 // which edits this app's files and database directly. This app also never
 // creates or modifies AWS resources — its only (optional) AWS use is sending
 // email through SES.
@@ -82,10 +86,14 @@ if (appConfig.security && appConfig.security.headers && appConfig.security.heade
         // as inline <style> tags and templates use inline style attributes, so
         // removing it would break the UI. Inline styles are not a script-exec
         // vector, so this is a much smaller concern than inline scripts.
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        // Allow remote imagery (photos linked from the website content) and
-        // data: URIs in addition to same-origin assets.
-        imgSrc: ["'self'", 'data:', 'https:'],
+        // fonts.googleapis.com serves the Saira Condensed / Barlow stylesheet
+        // linked from index.html; the font files come from fonts.gstatic.com.
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        // Allow remote imagery (photos linked from the website content),
+        // data: URIs, and blob: (the portal previews a resized photo before
+        // uploading it) in addition to same-origin assets.
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
         connectSrc: ["'self'"],
         formAction: ["'self'"],
         // Hardening that doesn't break anything: no plugins/objects, lock the
@@ -143,9 +151,13 @@ app.use(cookieSession({
 }));
 
 // ── body parsers ───────────────────────────────────────────────────────
-// 16 KB: the largest thing the SPA ever posts is the signup form (a handful
-// of short fields). Small enough to stop bulk bodies; every field is also
-// length-capped individually below.
+// 16 KB everywhere except the nonprofit portal's profile save (description,
+// hours, what-to-bring and up to 10 contacts — still tiny, but can pass
+// 16 KB), which gets 64 KB. Mounted first, so the general parser below sees
+// the body as already parsed. Every field is also length-capped
+// individually below. (Photo uploads are multipart, parsed by multer in
+// routes/portal.js with their own uploads.maxMb cap.)
+app.use('/api/portal', express.json({ limit: '64kb' }));
 app.use(express.urlencoded({ extended: false, limit: '16kb' }));
 app.use(express.json({ limit: '16kb' }));
 
@@ -180,13 +192,24 @@ app.use(require('./helpers/maintenance')(appConfig));
 // ── editable website images (the admin console drops files in HTML/images/) ─
 app.use('/content/images', express.static(path.join(__dirname, 'HTML', 'images'), { maxAge: '1h', index: false }));
 
+// ── uploaded images (uploads/{events,raffles,orgs,board}/) ──────────────
+// Written by the portal (orgs) and the admin console (events, raffles,
+// board). Read-only here: no directory index, dotfiles (temp files) refused,
+// 1 h cache. Names are random, so a replaced image gets a new URL.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '1h', index: false, dotfiles: 'deny', redirect: false
+}));
+// A miss under either image path is a plain 404 — never the SPA's index.html
+// (which the final handler would otherwise send with a 200).
+app.use(['/uploads', '/content/images'], (req, res) => res.status(404).type('text').send('Not found'));
+
 // ── JSON API (Angular SPA backend) ───────────────────────────────────────
 app.use('/api', require('./routes/api')(db, appConfig));
 
 // ── Angular SPA ──────────────────────────────────────────────────────────
 // Production build output from `ng build` (the @angular/build:application
 // builder emits a browser/ subfolder). Served at the root with a history-API
-// fallback so client-side routes (/login, /dashboard, /verify, …) resolve to
+// fallback so client-side routes (/events/…, /need-help, /portal, …) resolve to
 // index.html. /api is matched above, so it never reaches here.
 const spaDir = path.join(__dirname, 'frontend', 'mmoa-web-ui', 'dist', 'mmoa-web-ui', 'browser');
 const spaIndex = path.join(spaDir, 'index.html');
@@ -195,6 +218,67 @@ if (spaBuilt) {
   app.use(express.static(spaDir, { maxAge: '1h', index: false }));
 } else {
   console.warn('[spa] Angular build not found at', spaDir, '— run `npm run build:frontend`. Serving a placeholder.');
+}
+
+// ── Open Graph tags for shared event / raffle links ──────────────────────
+// Facebook's crawler doesn't run JavaScript, so a shared /events/<slug> link
+// would preview as the bare site. For these two routes the server injects
+// <title> + og:/twitter: tags (title, summary, flyer image) into index.html
+// before sending it; the SPA then boots as usual. Unknown / unpublished slugs
+// get the plain index with a 404 status (the SPA shows its not-found view).
+if (spaBuilt) {
+  const { escapeHtml } = require('./views/escapeHtml');
+  const publicApi = require('./routes/public')(db, appConfig);
+  let indexCache = { mtimeMs: -1, html: '' };
+  const readIndex = () => {
+    const st = fs.statSync(spaIndex);
+    if (st.mtimeMs !== indexCache.mtimeMs) indexCache = { mtimeMs: st.mtimeMs, html: fs.readFileSync(spaIndex, 'utf8') };
+    return indexCache.html;
+  };
+  const absBase = () => (appConfig.publicBaseUrl || `http://localhost:${appConfig.port || 3004}`).replace(/\/+$/, '');
+  const siteName = () => appConfig.appTitle || 'Mission Men of Anna';
+
+  function sendWithMeta(res, meta) {
+    let html = readIndex();
+    if (!meta) return res.status(404).type('html').send(html);
+    const abs = (u) => (u && u.startsWith('/')) ? absBase() + u : u;
+    const tags = [
+      ['og:type', 'website'], ['og:site_name', siteName()], ['og:title', meta.title],
+      ['og:description', meta.description], ['og:url', abs(meta.path)], ['og:image', abs(meta.image)]
+    ].filter(([, v]) => v).map(([k, v]) => `<meta property="${k}" content="${escapeHtml(v)}">`);
+    tags.push(`<meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">`);
+    if (meta.description) {
+      html = html.replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${escapeHtml(meta.description)}">`);
+    }
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(meta.title + ' · ' + siteName())}</title>`)
+      .replace('</head>', tags.join('\n') + '\n</head>');
+    res.set('Cache-Control', 'no-cache').type('html').send(html);
+  }
+
+  const defaultImage = '/content/images/carshow.jpg';
+  app.get('/events/:slug', async (req, res, next) => {
+    try {
+      const ev = await publicApi.findPublishedEvent(req.params.slug);
+      sendWithMeta(res, ev && {
+        title: ev.title,
+        description: ev.summary || ev.benefiting || '',
+        path: '/events/' + ev.slug,
+        image: ev.flyer_url || ev.cover_url || defaultImage
+      });
+    } catch (e) { next(e); }
+  });
+  app.get('/raffles/:slug', async (req, res, next) => {
+    try {
+      const r = await publicApi.findPublishedRaffle(req.params.slug);
+      sendWithMeta(res, r && {
+        title: r.title,
+        description: [r.ticket_price_text, r.drawing_at ? 'Drawing ' + new Date(r.drawing_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric', year: 'numeric' }) : '']
+          .filter(Boolean).join(' · ') || 'Raffle tickets sold in person by Mission Men of Anna',
+        path: '/raffles/' + r.slug,
+        image: r.image_url || r.flyer_url || defaultImage
+      });
+    } catch (e) { next(e); }
+  });
 }
 
 // Final handler: JSON 404 for unmatched API routes, SPA index for everything

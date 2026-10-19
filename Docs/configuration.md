@@ -16,12 +16,14 @@ the values you want to override. Keys prefixed with `_` are comments.
 | `port` | `3004` | HTTP(S) port |
 | `appTitle` / `appSubtitle` | `Mission Men of Anna` / `""` | Site name shown in the UI and emails |
 | `orgName` | `Mission Men of Anna Inc` | Legal name — emails and the `{{orgName}}` website token |
-| `publicBaseUrl` | `http://localhost:3004` | Absolute base for emailed links. Must be the URL members actually reach. |
+| `publicBaseUrl` | `http://localhost:3004` | Absolute base for emailed links. Must be the URL visitors actually reach (also the base for Open Graph image/page URLs). |
 | `sessionKeyMode` / `sessionKeys` | `auto-generate` / `["",""]` | Leave blank — see "Session signing keys" |
 | `sessionMaxAgeHours` | `8` | Sign-in lifetime |
 | `passwordMinLength` | `8` | Minimum password length |
 | `passwordResetTokenTtlHours` | `2` | Reset-link lifetime |
-| `allowMemberRegistration` | `true` | Toggle public signup |
+| `allowMemberRegistration` | `true` | Toggle nonprofit sign-up (Partner With Us → create a login) |
+| `site.phone` / `site.ein` / `site.facebookUrl` | `(214) 763-5546` / `33-4035685` / `https://www.facebook.com/missionmenofanna` | Public contact facts in the header/footer/pages; returned by `GET /api/site`; also the `{{phone}}`, `{{phoneTel}}`, `{{ein}}`, `{{facebookUrl}}` website tokens |
+| `uploads.maxMb` | `8` | Largest accepted uploaded image (portal photos; the console enforces the same for its uploads) |
 | `maintenanceCommand` | `./scripts/maintenance.sh` | Run by the admin console (cwd = app dir) with `--enable --title --message` / `--disable` / `--status` |
 
 ### `server`
@@ -56,15 +58,15 @@ resources.
 | `headers` | `enabled, CSP on` | helmet + Content-Security-Policy |
 | `session` | `secure: null, httpOnly, sameSite: strict` | `secure: null` = automatic (Secure whenever HTTPS) |
 
-Every authenticated API call re-reads the account row, so deactivating a member
-in the admin console or changing a password ends that member's other sessions
+Every authenticated API call re-reads the account row, so deactivating a login
+in the admin console or changing a password ends that login's other sessions
 on their next request.
 
 **Session signing keys.** If `sessionKeys` in `config.json` holds two real
 values they are used. Otherwise (blank or `<PLACEHOLDER>`) the app uses
 **`local-secrets.json`** (`config/localSecrets.js`): generated once on first
 boot, mode 0600, gitignored, reused on every restart, never written back into
-`config.json`. Deleting it signs every member out; nothing worse.
+`config.json`. Deleting it signs every nonprofit out; nothing worse.
 
 ## Secrets — do not commit
 

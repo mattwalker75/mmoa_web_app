@@ -1,11 +1,12 @@
 {
   "name": "mmoa_web_app",
   "version": "0.1.0",
-  "description": "Public website + member accounts for Mission Men of Anna Inc. Visitors read about the mission and upcoming events; members sign up, verify their email, and sign in. Managed from mmoa_admin_console.",
+  "description": "Public website for Mission Men of Anna Inc: events, raffles, About / Partner pages, and the \"Need Help?\" directory of verified local nonprofits, which keep their own profiles through a nonprofit login. Managed from mmoa_admin_console.",
   "main": "app.js",
   "private": true,
   "scripts": {
     "start": "node app.js",
+    "test": "node --test test/*.test.js",
     "install:frontend": "npm --prefix frontend/mmoa-web-ui install",
     "build:frontend": "npm --prefix frontend/mmoa-web-ui install && npm --prefix frontend/mmoa-web-ui run build",
     "dev:frontend": "npm --prefix frontend/mmoa-web-ui start"
@@ -23,6 +24,7 @@
     "express-rate-limit": "Per-IP throttling on the account-creation / email endpoints.",
     "helmet": "Security headers (CSP, HSTS, frame options, content-type).",
     "morgan": "HTTP request logging (to logs/app.log via START_APP.sh).",
+    "multer": "multipart/form-data parsing for the nonprofit portal's photo upload (memory storage, size-capped by uploads.maxMb; the bytes are then magic-byte checked in helpers/uploads.js).",
     "mysql2": "MySQL driver (database.engine='mysql').",
     "nodemailer": "Sends the verification / password-reset links. In dev the transport is a console logger; SMTP when email.transport='smtp'.",
     "sqlite3": "Embedded SQLite database driver (database.engine='sqlite', the default)."
@@ -36,6 +38,7 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
+    "multer": "^2.4.0",
     "mysql2": "^3.16.2",
     "nodemailer": "^6.9.16",
     "sqlite3": "^5.1.7"

@@ -12,16 +12,14 @@ import { apiError, apiCode } from '../core/errors';
     <div class="auth-wrap">
       <div class="auth-card card center rise">
         @if (state() === 'pending') {
-          <div class="spinner dark" style="margin:0 auto 16px;border-color:rgba(19,41,75,.2);border-top-color:var(--brand-700);width:30px;height:30px"></div>
+          <div class="spinner light big" role="status" aria-label="Verifying" style="margin:0 auto 16px"></div>
           <h1>Verifying…</h1>
           <p class="muted">Hang tight while we confirm your email address.</p>
         } @else if (state() === 'ok') {
-          <div style="font-size:3rem">✅</div>
           <h1>Email verified!</h1>
-          <p class="muted">Your account is active. You can sign in now.</p>
+          <p class="muted">Your login is active. Sign in to fill out your organization's profile.</p>
           <a class="btn btn-primary" routerLink="/login">Sign in</a>
         } @else {
-          <div style="font-size:3rem">⚠️</div>
           <h1>Verification failed</h1>
           <p class="muted">{{ error() }}</p>
           @if (canResend()) {

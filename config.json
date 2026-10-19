@@ -6,6 +6,16 @@
   "orgName": "Mission Men of Anna Inc",
   "_comment_publicBaseUrl": "Absolute base URL baked into emailed verification / password-reset links. Must be the URL members actually reach (https://<domain> behind the ALB in production).",
   "publicBaseUrl": "http://localhost:3004",
+  "site": {
+    "_comment": "Public contact facts shown in the site header/footer and returned by GET /api/site (also the {{phone}}, {{ein}}, {{facebookUrl}} website tokens).",
+    "phone": "(214) 763-5546",
+    "ein": "33-4035685",
+    "facebookUrl": "https://www.facebook.com/missionmenofanna"
+  },
+  "uploads": {
+    "_comment": "Uploaded images live in uploads/{events,raffles,orgs,board}/ (gitignored) and are served at /uploads. maxMb = largest accepted file.",
+    "maxMb": 8
+  },
   "server": {
     "_comment": "TLS for the app itself. Behind the ALB keep ssl=false (the ALB terminates TLS) and trustProxy=1 so client IPs come from X-Forwarded-For.",
     "ssl": false,
@@ -22,6 +32,7 @@
   "sessionMaxAgeHours": 8,
   "passwordMinLength": 8,
   "passwordResetTokenTtlHours": 2,
+  "_comment_allowMemberRegistration": "Lets nonprofits create a login (Partner With Us → sign up). false = sign-up closed.",
   "allowMemberRegistration": true,
   "_comment_maintenanceCommand": "Run by the admin console (cwd = this app's directory) with --enable --title --message / --disable / --status.",
   "maintenanceCommand": "./scripts/maintenance.sh",

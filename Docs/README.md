@@ -10,8 +10,10 @@ Detailed documentation for `mmoa_web_app`. Start with the root
   and how secrets are handled.
 - **[development.md](development.md)** — build/run loop, the lifecycle scripts,
   the Angular critical-CSS gotcha, and how to test.
-- **[database.md](database.md)** — schema overview, SQLite vs MySQL, migrations.
+- **[database.md](database.md)** — schema (accounts, nonprofit directory,
+  events, raffles, board), uploaded images, SQLite vs MySQL, migrations.
 - **[email.md](email.md)** — email transports (console / SMTP / SES), the
   verification flow, and the `showLinksInBrowser` testing bypass.
 - **[website-content.md](website-content.md)** — the admin-editable website:
-  the `HTML/` section files, image folder, `{{tokens}}` and `windows.json`.
+  the `HTML/` section files (hero, about, help, partner, footer), site photos,
+  the logo override and `{{tokens}}`.

@@ -16,75 +16,83 @@ import { apiError } from '../core/errors';
     <div class="auth-wrap">
       <div class="auth-card wide card rise">
         <div class="auth-head">
-          <h1>Join {{ appTitle() }}</h1>
-          <p class="muted">Create your member account. We'll email you a link to verify your address.</p>
+          <span class="kicker">Partner with Mission Men of Anna</span>
+          <h1>Create your nonprofit login</h1>
+          <p class="muted">Free for local nonprofits. After you confirm your email you can fill out your profile; it appears in "Need Help?" once we verify your EIN.</p>
         </div>
 
         @if (!registrationOpen()) {
-          <div class="alert alert-info">New member sign-up is closed right now. Please check back later.</div>
-          <div class="auth-foot">Already a member? <a routerLink="/login">Sign in</a></div>
+          <div class="alert alert-info">New nonprofit sign-up is paused right now. Please check back later or call us.</div>
+          <div class="auth-foot">Already have a login? <a routerLink="/login">Sign in</a></div>
         } @else if (loggedIn()) {
-          <!-- Reached while signed in — a "Join" link or a bookmark. Don't
-               offer the form; ask what they meant. -->
+          <!-- Reached while signed in — a link or a bookmark. Don't offer the
+               form; ask what they meant. -->
           <div class="alert alert-info">You're signed in as <strong>{{ signedInAs() }}</strong>.</div>
-          <p class="muted">To create a different account, sign out first. Otherwise, head to your member home.</p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-dark" type="button" (click)="signOutAndContinue()" [disabled]="loading()">Sign out and create a new account</button>
-            <button class="btn btn-ghost" type="button" (click)="goDashboard()">Go to member home</button>
+          <p class="muted">Each login belongs to one organization. To create a login for a different organization, sign out first.</p>
+          <div class="btn-row">
+            <button class="btn btn-outline" type="button" (click)="signOutAndContinue()" [disabled]="loading()">Sign out and create a new login</button>
+            <button class="btn btn-primary" type="button" (click)="goPortal()">Go to my profile</button>
           </div>
         } @else {
-        @if (error()) { <div class="alert alert-error">{{ error() }}</div> }
+        @if (error()) { <div class="alert alert-error" role="alert">{{ error() }}</div> }
 
-        <form (ngSubmit)="submit()">
+        <form (ngSubmit)="submit()" novalidate>
+          <h2 class="form-section">Your organization</h2>
           <div class="grid-2">
             <div class="field">
-              <label>First name</label>
-              <input class="input" name="first_name" [(ngModel)]="m.first_name" autocomplete="given-name" required>
+              <label for="su-org">Organization name</label>
+              <input id="su-org" class="input" name="org_name" [(ngModel)]="m.org_name" autocomplete="organization" maxlength="200" required>
             </div>
             <div class="field">
-              <label>Last name</label>
-              <input class="input" name="last_name" [(ngModel)]="m.last_name" autocomplete="family-name" required>
+              <label for="su-ein">EIN (federal tax ID)</label>
+              <input id="su-ein" class="input" name="ein" inputmode="numeric" maxlength="10" placeholder="12-3456789"
+                [ngModel]="m.ein" (ngModelChange)="formatEin($event)" required aria-describedby="su-ein-hint">
+              <span class="hint" id="su-ein-hint">9 digits. Never shown publicly — we use it to confirm your 501(c)(3) status.</span>
             </div>
           </div>
 
+          <h2 class="form-section">Primary contact</h2>
           <div class="grid-2">
             <div class="field">
-              <label>Login name</label>
-              <input class="input" name="login_name" [(ngModel)]="m.login_name" autocomplete="username" required>
-              <span class="hint">Unique — used to sign in. 3–30 letters, numbers, . _ -</span>
+              <label for="su-first">First name</label>
+              <input id="su-first" class="input" name="first_name" [(ngModel)]="m.first_name" autocomplete="given-name" required>
             </div>
             <div class="field">
-              <label>Email</label>
-              <input class="input" type="email" name="email" [(ngModel)]="m.email" autocomplete="email" required>
+              <label for="su-last">Last name</label>
+              <input id="su-last" class="input" name="last_name" [(ngModel)]="m.last_name" autocomplete="family-name" required>
             </div>
           </div>
-
           <div class="field">
-            <label>Phone number <span class="muted">(optional)</span></label>
-            <input class="input" type="tel" name="phone_number" inputmode="tel" maxlength="12"
-              autocomplete="tel"
-              [ngModel]="m.phone_number" (ngModelChange)="formatPhone($event)">
+            <label for="su-email">Email</label>
+            <input id="su-email" class="input" type="email" name="email" [(ngModel)]="m.email" autocomplete="email" required aria-describedby="su-email-hint">
+            <span class="hint" id="su-email-hint">For signing in and messages from MMoA. It isn't shown publicly (you can add a public email to your profile).</span>
           </div>
 
+          <h2 class="form-section">Login</h2>
+          <div class="field">
+            <label for="su-login">Login name</label>
+            <input id="su-login" class="input" name="login_name" [(ngModel)]="m.login_name" autocomplete="username" required aria-describedby="su-login-hint">
+            <span class="hint" id="su-login-hint">3–30 letters, numbers, . _ - (you can also sign in with your email)</span>
+          </div>
           <div class="grid-2">
             <div class="field">
-              <label>Password</label>
-              <app-password-input [(value)]="m.password" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" [minlength]="minLen()" />
+              <label for="su-pw">Password</label>
+              <app-password-input inputId="su-pw" [(value)]="m.password" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" [minlength]="minLen()" />
               <span class="hint">At least {{ minLen() }} characters. Show/Hide reveals both fields.</span>
             </div>
             <div class="field">
-              <label>Confirm password</label>
-              <app-password-input [(value)]="m.confirm_password" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" />
+              <label for="su-pw2">Confirm password</label>
+              <app-password-input inputId="su-pw2" [(value)]="m.confirm_password" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" />
             </div>
           </div>
 
-          <button class="btn btn-primary btn-block" type="submit" [disabled]="loading()">
-            @if (loading()) { <span class="spinner"></span> } @else { Create account }
+          <button class="btn btn-primary btn-lg btn-block" type="submit" [disabled]="loading()">
+            @if (loading()) { <span class="spinner" role="status" aria-label="Creating your login"></span> } @else { Create my login }
           </button>
         </form>
 
         <div class="auth-foot">
-          Already a member? <a routerLink="/login">Sign in</a>
+          Already have a login? <a routerLink="/login">Sign in</a>
         </div>
         }
       </div>
@@ -97,7 +105,7 @@ export class SignupComponent {
   private devLinks = inject(DevLinkService);
   private router = inject(Router);
 
-  m = { login_name: '', first_name: '', last_name: '', phone_number: '', email: '', password: '', confirm_password: '' };
+  m = { org_name: '', ein: '', login_name: '', first_name: '', last_name: '', email: '', password: '', confirm_password: '' };
   loading = signal(false);
   error = signal('');
   showPw = signal(false);
@@ -108,28 +116,26 @@ export class SignupComponent {
 
   loggedIn() { return this.auth.isLoggedIn(); }
   signedInAs() { const u = this.auth.user(); return u?.email || u?.login_name || 'your account'; }
-  goDashboard() { this.router.navigateByUrl('/dashboard'); }
+  goPortal() { this.router.navigateByUrl('/portal'); }
   /** Sign out in place: once the session is gone the form renders here. */
   async signOutAndContinue() {
     this.loading.set(true);
     try { await this.auth.logout(); } finally { this.loading.set(false); }
   }
 
-  /** Format a US phone as the user types: 123-456-7890 (max 10 digits). */
-  formatPhone(v: string) {
-    const d = (v || '').replace(/\D/g, '').slice(0, 10);
-    let out = d;
-    if (d.length > 6) out = `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
-    else if (d.length > 3) out = `${d.slice(0, 3)}-${d.slice(3)}`;
-    this.m.phone_number = out;
+  /** Format an EIN as the user types: 12-3456789. */
+  formatEin(v: string) {
+    const d = (v || '').replace(/\D/g, '').slice(0, 9);
+    this.m.ein = d.length > 2 ? `${d.slice(0, 2)}-${d.slice(2)}` : d;
   }
 
   async submit() {
     if (this.loading()) return;
     this.error.set('');
-    if (!this.m.login_name || !this.m.first_name || !this.m.last_name || !this.m.email || !this.m.password) {
+    if (!this.m.org_name || !this.m.ein || !this.m.login_name || !this.m.first_name || !this.m.last_name || !this.m.email || !this.m.password) {
       this.error.set('Please fill in all required fields.'); return;
     }
+    if (!/^\d{2}-?\d{7}$/.test(this.m.ein)) { this.error.set('EIN must be 9 digits (for example 12-3456789).'); return; }
     if (this.m.password.length < this.minLen()) { this.error.set(`Password must be at least ${this.minLen()} characters.`); return; }
     if (this.m.password !== this.m.confirm_password) { this.error.set('Passwords do not match.'); return; }
 
@@ -141,7 +147,7 @@ export class SignupComponent {
       this.devLinks.set(res.devLink);
       this.router.navigate(['/verify-pending'], { queryParams: { email: res.email } });
     } catch (err) {
-      this.error.set(apiError(err, 'Could not create your account.'));
+      this.error.set(apiError(err, 'Could not create your login.'));
     } finally {
       this.loading.set(false);
     }

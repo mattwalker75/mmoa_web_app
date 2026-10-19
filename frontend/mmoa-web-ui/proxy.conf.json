@@ -8,5 +8,10 @@
     "target": "http://localhost:3004",
     "secure": false,
     "changeOrigin": true
+  },
+  "/uploads": {
+    "target": "http://localhost:3004",
+    "secure": false,
+    "changeOrigin": true
   }
 }

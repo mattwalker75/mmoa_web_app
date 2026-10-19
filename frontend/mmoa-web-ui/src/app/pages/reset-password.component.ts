@@ -35,13 +35,13 @@ type LinkState = 'checking' | 'valid' | 'expired' | 'used' | 'superseded' | 'inv
           @if (error()) { <div class="alert alert-error">{{ error() }}</div> }
           <form (ngSubmit)="submit()">
             <div class="field">
-              <label>New password</label>
-              <app-password-input [(value)]="password" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" [minlength]="minLen()" />
+              <label for="rp-pw">New password</label>
+              <app-password-input inputId="rp-pw" [(value)]="password" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" [minlength]="minLen()" />
               <span class="hint">At least {{ minLen() }} characters. Show/Hide reveals both fields.</span>
             </div>
             <div class="field">
-              <label>Confirm new password</label>
-              <app-password-input [(value)]="confirm" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" />
+              <label for="rp-pw2">Confirm new password</label>
+              <app-password-input inputId="rp-pw2" [(value)]="confirm" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" />
             </div>
             <button class="btn btn-primary btn-block" type="submit" [disabled]="loading()">
               @if (loading()) { <span class="spinner"></span> } @else { Reset password }
@@ -60,7 +60,7 @@ export class ResetPasswordComponent {
   token = this.route.snapshot.queryParamMap.get('token') || '';
   password = '';
   confirm = '';
-  // One toggle for both fields, like signup and the dashboard modals.
+  // One toggle for both fields, like signup and the portal's password form.
   showPw = signal(false);
   state = signal<LinkState>('checking');
   loading = signal(false);

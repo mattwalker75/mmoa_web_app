@@ -15,21 +15,21 @@ import { apiError, apiCode } from '../core/errors';
     <div class="auth-wrap">
       <div class="auth-card card rise">
         <div class="auth-head">
-          <h1>Welcome back</h1>
-          <p class="muted">Sign in to your {{ appTitle() }} member account.</p>
+          <h1>Nonprofit login</h1>
+          <p class="muted">Sign in to keep your organization's "Need Help?" profile up to date.</p>
         </div>
 
         @if (signedOut()) { <div class="alert alert-info">You've been signed out. Sign in again below.</div> }
-        @if (error()) { <div class="alert alert-error">{{ error() }}</div> }
+        @if (error()) { <div class="alert alert-error" role="alert">{{ error() }}</div> }
 
         <form (ngSubmit)="submit()">
           <div class="field">
-            <label>Login name or email</label>
-            <input class="input" name="identifier" [(ngModel)]="identifier" autocomplete="username" required>
+            <label for="li-id">Login name or email</label>
+            <input id="li-id" class="input" name="identifier" [(ngModel)]="identifier" autocomplete="username" required>
           </div>
           <div class="field">
-            <label>Password</label>
-            <app-password-input [(value)]="password" autocomplete="current-password" />
+            <label for="li-pw">Password</label>
+            <app-password-input inputId="li-pw" [(value)]="password" autocomplete="current-password" />
             <a class="hint" routerLink="/forgot-password">Forgot your password?</a>
           </div>
           <button class="btn btn-primary btn-block" type="submit" [disabled]="loading()">
@@ -39,7 +39,7 @@ import { apiError, apiCode } from '../core/errors';
 
         @if (registrationOpen()) {
           <div class="auth-foot">
-            Not a member yet? <a routerLink="/signup">Create an account</a>
+            New partner nonprofit? <a routerLink="/signup">Create a free login</a>
           </div>
         }
       </div>
@@ -75,7 +75,7 @@ export class LoginComponent {
       // ("//evil.com") and backslash variants so ?redirect= can't bounce the
       // user to an external site after login (open redirect).
       const safe = !!redirect && redirect.startsWith('/') && redirect[1] !== '/' && redirect[1] !== '\\';
-      this.router.navigateByUrl(safe ? redirect! : '/dashboard');
+      this.router.navigateByUrl(safe ? redirect! : '/portal');
     } catch (err) {
       if (apiCode(err) === 'unverified') {
         const email = (err as any)?.error?.email || this.identifier;
