@@ -91,13 +91,13 @@ module.exports = function (db, appConfig) {
   // Cookie sessions are stateless, so each authenticated API call re-reads
   // the account (one primary-key lookup): deactivated in the admin console,
   // deleted, or password changed elsewhere → the session is dropped and the
-  // call gets 401. The same read refreshes email_verified_at and role.
+  // call gets 401. The same read refreshes email_verified_at.
   async function refreshSessionUser(req) {
     const s = req.session && req.session.user;
     if (!s) return null;
     let u;
     try {
-      u = await db.getAsync('SELECT user_id, role, is_active, password_hash, email_verified_at FROM users WHERE user_id = ?', [s.user_id]);
+      u = await db.getAsync('SELECT user_id, is_active, password_hash, email_verified_at FROM users WHERE user_id = ?', [s.user_id]);
     } catch (e) {
       return s; // a DB blip should not log everyone out
     }
@@ -106,7 +106,6 @@ module.exports = function (db, appConfig) {
       return null;
     }
     s.email_verified_at = u.email_verified_at;
-    s.role = u.role;
     return s;
   }
   async function requireUser(req, res, next) {
@@ -152,7 +151,6 @@ module.exports = function (db, appConfig) {
       first_name: u.first_name,
       last_name: u.last_name,
       phone_number: u.phone_number || null,
-      role: u.role,
       email_verified: !!u.email_verified_at,
       created_at: isoOrNull(u.created_at)
     };
@@ -383,8 +381,8 @@ module.exports = function (db, appConfig) {
 
       const hash = await hashPassword(password);
       const ins = await db.runAsync(
-        `INSERT INTO users (login_name, email, first_name, last_name, phone_number, password_hash, role, is_active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'member', 1, ?)`,
+        `INSERT INTO users (login_name, email, first_name, last_name, phone_number, password_hash, is_active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
         [loginName, email, firstName, lastName, phoneNumber, hash, sqlTime(Date.now())]
       );
       const userId = ins.lastID;
@@ -442,7 +440,7 @@ module.exports = function (db, appConfig) {
       }
       const u = await db.getAsync(
         `SELECT user_id, login_name, email, first_name, last_name, phone_number,
-                password_hash, role, is_active, email_verified_at, created_at
+                password_hash, is_active, email_verified_at, created_at
            FROM users WHERE email = ? OR LOWER(login_name) = LOWER(?)`,
         [identifier.toLowerCase(), identifier]
       );
@@ -462,7 +460,7 @@ module.exports = function (db, appConfig) {
         return res.status(401).json(generic);
       }
 
-      if (u.role === 'member' && !u.email_verified_at) {
+      if (!u.email_verified_at) {
         // Valid credentials — clear the failure counters even though the email
         // gate blocks the session, so a verified retry isn't penalized.
         await resetLockout(db, { ip, identifier });
@@ -478,7 +476,6 @@ module.exports = function (db, appConfig) {
         email: u.email,
         first_name: u.first_name,
         last_name: u.last_name,
-        role: u.role,
         email_verified_at: u.email_verified_at,
         pv: pwVersion(u.password_hash) // see refreshSessionUser
       };
@@ -503,7 +500,7 @@ module.exports = function (db, appConfig) {
     if (!s) return res.json({ user: null });
     try {
       const u = await db.getAsync(
-        'SELECT user_id, login_name, email, first_name, last_name, phone_number, role, email_verified_at, created_at FROM users WHERE user_id = ?',
+        'SELECT user_id, login_name, email, first_name, last_name, phone_number, email_verified_at, created_at FROM users WHERE user_id = ?',
         [s.user_id]
       );
       res.json({ user: publicUser(u || s) });

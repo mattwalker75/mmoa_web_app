@@ -15,13 +15,11 @@
 -- ----------------------------------------------------------------------------
 -- USERS
 -- ----------------------------------------------------------------------------
--- role:
---   'member' — everyone who signs up on the website
---   'admin'  — an organizer account (created by scripts/create-admin.js or the
---              admin console). The web app has no admin pages; the role is
---              informational for the console and exempt from the email gate.
+-- Every account is a member — there are no roles. Administration happens in
+--   the admin console (mmoa_admin_console), whose operators are NOT users here.
 -- email_verified_at: NULL until the user clicks the link in their verification
---   email. Members cannot log in while NULL; admins are created already-verified.
+--   email. Members cannot log in while NULL (scripts/create-member.js and the
+--   admin console can create accounts already verified).
 -- is_active: 0 = disabled from the admin console (login refused, sessions end).
 -- login_name is case-insensitive (the NOCASE index below), like MySQL's
 --   utf8mb4_unicode_ci UNIQUE.
@@ -34,13 +32,11 @@ CREATE TABLE IF NOT EXISTS users (
     last_name         TEXT NOT NULL,
     phone_number      TEXT,
     password_hash     TEXT NOT NULL,
-    role              TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('member','admin')),
     is_active         INTEGER NOT NULL DEFAULT 1,
     email_verified_at TIMESTAMP,
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login_at     TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 -- Login names are case-insensitive (matches MySQL's utf8mb4_unicode_ci UNIQUE).
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_nocase ON users(login_name COLLATE NOCASE);
 

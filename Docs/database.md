@@ -39,7 +39,7 @@ SQL files in sync.
 
 ## Tables
 
-- **`users`** — accounts. `role` ∈ `member|admin` (default `member`);
+- **`users`** — accounts; every account is a member (no roles).
   `login_name` and `email` unique (login name case-insensitive on both engines);
   `phone_number` optional; `is_active` (0 = disabled); `email_verified_at` (NULL
   = unverified — members can't sign in); `created_at`, `last_login_at`.

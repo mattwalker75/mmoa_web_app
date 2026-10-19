@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// scripts/create-admin.js — one-shot helper to create an organizer (admin) user.
+// scripts/create-member.js — one-shot helper to create a ready-to-use member.
 //
 // Usage:
-//   node scripts/create-admin.js <login_name> <email> '<first_name>' '<last_name>' '<password>'
+//   node scripts/create-member.js <login_name> <email> '<first_name>' '<last_name>' '<password>'
 //
-// Idempotent: if the email or login name already exists, it upgrades that
-// user to admin + sets email_verified_at and resets the password. login_name
-// is also updated to match the argument.
+// The account is created already email-verified and active, so it can sign
+// in immediately (no verification link needed). Idempotent: if the email or
+// login name already exists, that member is re-activated, marked verified,
+// and gets the new password; login_name is also updated to match.
 //
-// The web app has no admin pages — the role matters to the admin console
-// (mmoa_admin_console), which can also create and edit users itself. This
+// The admin console (mmoa_admin_console → Members) can do the same; this
 // script is for bootstrapping a box before the console is connected.
 
 const { appConfig } = require('../config/appConfig');
@@ -24,7 +24,7 @@ function sqlTime(ms) {
 async function main() {
   const [, , loginRaw, emailRaw, firstRaw, lastRaw, passwordRaw] = process.argv;
   if (!loginRaw || !emailRaw || !firstRaw || !lastRaw || !passwordRaw) {
-    console.error('Usage: node scripts/create-admin.js <login_name> <email> <first_name> <last_name> <password>');
+    console.error('Usage: node scripts/create-member.js <login_name> <email> <first_name> <last_name> <password>');
     process.exit(1);
   }
   const loginName = loginRaw.trim();
@@ -50,16 +50,16 @@ async function main() {
   );
   if (existing) {
     await db.runAsync(
-      "UPDATE users SET login_name = ?, email = ?, first_name = ?, last_name = ?, password_hash = ?, role = 'admin', is_active = 1, email_verified_at = COALESCE(email_verified_at, ?) WHERE user_id = ?",
+      "UPDATE users SET login_name = ?, email = ?, first_name = ?, last_name = ?, password_hash = ?, is_active = 1, email_verified_at = COALESCE(email_verified_at, ?) WHERE user_id = ?",
       [loginName, email, firstName, lastName, hash, now, existing.user_id]
     );
-    console.log(`Updated existing user (id=${existing.user_id}) to admin: ${email}`);
+    console.log(`Updated existing member (id=${existing.user_id}): ${email}`);
   } else {
     const ins = await db.runAsync(
-      "INSERT INTO users (login_name, email, first_name, last_name, password_hash, role, is_active, email_verified_at, created_at) VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, ?)",
+      "INSERT INTO users (login_name, email, first_name, last_name, password_hash, is_active, email_verified_at, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
       [loginName, email, firstName, lastName, hash, now, now]
     );
-    console.log(`Created admin user (id=${ins.lastID}): ${email}`);
+    console.log(`Created member (id=${ins.lastID}): ${email}`);
   }
 
   // Give SQLite a beat to flush; mysql2 pool needs an explicit close.
@@ -68,6 +68,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('[create-admin] failed:', err);
+  console.error('[create-member] failed:', err);
   process.exit(1);
 });

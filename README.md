@@ -40,8 +40,8 @@ Open http://localhost:3004.
 Optional, once per clone:
 
 ```bash
-# an organizer (admin) account — the DB auto-creates on first run
-node scripts/create-admin.js admin admin@example.org 'First' 'Last' 'somepassword'
+# (optional) a ready-to-use, already-verified member — the DB auto-creates on first run
+node scripts/create-member.js jdoe jdoe@example.org 'First' 'Last' 'somepassword'
 
 # local git guards that keep real keys out of commits
 ./scripts/git-hooks/install.sh

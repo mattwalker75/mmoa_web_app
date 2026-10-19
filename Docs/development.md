@@ -16,7 +16,7 @@ helpers/
 routes/api.js                  # JSON API consumed by the SPA (mounted at /api)
 views/escapeHtml.js            # HTML escaping (leaf module)
 scripts/
-  create-admin.js              # bootstrap an organizer (admin) account
+  create-member.js             # bootstrap a verified member account
   maintenance.sh               # --enable/--disable/--status (the console runs this)
   git-hooks/                   # pre-commit secret scan + install.sh
 HTML/                          # admin-editable website sections, windows.json, images/

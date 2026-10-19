@@ -10,8 +10,8 @@ import { apiError } from '../core/errors';
 
 /**
  * Member home: profile summary, change password, and upcoming events.
- * Profile edits (name, email, phone, role, active) are made by organizers
- * in the admin console; the profile is re-read on load so those show up
+ * Profile edits (name, email, phone, active) are made by organizers in the
+ * admin console; the profile is re-read on load so those show up
  * without a re-login.
  */
 @Component({
@@ -40,7 +40,6 @@ import { apiError } from '../core/errors';
               <dt>Email</dt><dd>{{ u.email }}</dd>
               <dt>Phone</dt><dd>{{ u.phone_number || '—' }}</dd>
               @if (u.created_at) { <dt>Member since</dt><dd>{{ u.created_at | date:'mediumDate' }}</dd> }
-              @if (u.role === 'admin') { <dt>Role</dt><dd>Organizer</dd> }
             </dl>
           }
           <p class="muted small">Need to change your name, email or phone? Contact an organizer.</p>

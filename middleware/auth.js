@@ -1,8 +1,8 @@
 // middleware/auth.js — password hashing helpers.
 //
-// Two roles exist in the users table: 'member' (everyone who signs up) and
-// 'admin' (created with scripts/create-admin.js or the admin console). The
-// web app itself has no admin pages — the JSON auth guards (signed-in check,
+// Every account in the users table is a member — there are no roles. The
+// web app has no admin pages (administration lives in the admin console) —
+// the JSON auth guards (signed-in check,
 // session re-validation) live with the API in routes/api.js, because they
 // answer 401 JSON rather than redirecting.
 //

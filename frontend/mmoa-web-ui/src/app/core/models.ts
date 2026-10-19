@@ -6,7 +6,6 @@ export interface User {
   first_name: string;
   last_name: string;
   phone_number?: string | null;
-  role: 'member' | 'admin';
   email_verified: boolean;
   /** ISO-8601 UTC ("member since"). */
   created_at?: string | null;

@@ -76,8 +76,8 @@ parsed engine-agnostically and fails closed.
 ## The no-admin-surface principle
 
 **This app exposes no administrative capability.** There are no admin pages,
-no admin API, and no user-management endpoints; the `admin` role only exempts
-an organizer account from the email gate. Everything administrative happens in
+no admin API, and no user-management endpoints, and no roles — every account is
+a member. Everything administrative happens in
 **mmoa_admin_console**, which reaches this app's directory (locally, over SSH,
 or through AWS SSM) and:
 
