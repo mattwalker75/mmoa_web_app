@@ -270,6 +270,19 @@ module.exports = function (db, appConfig) {
   });
 
   // ── "Need Help?" directory ────────────────────────────────────────────
+  // Keyword search works on words, not raw substrings: lower-cased, accents
+  // stripped, split on anything that isn't a letter or digit.
+  function tokenize(text) {
+    return String(text || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .split(/[^a-z0-9]+/).filter(Boolean);
+  }
+  // Short query words (VA, GED, ESL, 988) must match a whole word, or "va"
+  // would hit "Van Alstyne" and "available". Longer ones match the start of a
+  // word, so "dent" finds "dental"/"dentists" and "diaper" finds "diapers".
+  function wordMatches(token, word) {
+    return word.length <= 3 ? token === word : token.startsWith(word);
+  }
+
   async function activeMeta() {
     const [categories, cities] = await Promise.all([
       db.allAsync('SELECT category_id, slug, name FROM categories WHERE is_active = 1 ORDER BY sort, name'),
@@ -294,29 +307,41 @@ module.exports = function (db, appConfig) {
   }
 
   router.get('/directory/search', async (req, res) => {
-    const category = String(req.query.category || '').trim().toLowerCase();
+    // ?category= takes one slug or several, comma-separated and/or repeated
+    // (?category=food,housing or ?category=food&category=housing). An org
+    // matches when it helps with ANY selected need.
+    const slugs = [...new Set([].concat(req.query.category || [])
+      .flatMap(v => String(v).split(','))
+      .map(s => s.trim().toLowerCase()).filter(Boolean))].slice(0, 20);
     const cityRaw = String(req.query.city || '').trim();
     const q = String(req.query.q || '').trim().toLowerCase().slice(0, 200);
     try {
       const meta = await activeMeta();
-      let cat = null;
-      if (category) {
-        cat = meta.categories.find(c => c.slug === category);
-        if (!cat) return res.status(400).json({ error: 'Unknown category' });
+      const cats = [];
+      for (const slug of slugs) {
+        const c = meta.categories.find(x => x.slug === slug);
+        if (!c) return res.status(400).json({ error: 'Unknown category' });
+        cats.push(c);
       }
       let city = null;
       if (cityRaw && cityRaw.toLowerCase() !== 'any') {
         city = meta.cities.find(c => c.name.toLowerCase() === cityRaw.toLowerCase());
         if (!city) return res.status(400).json({ error: 'Unknown city' });
       }
-      const words = q.split(/\s+/).filter(Boolean).slice(0, 10);
+      const words = tokenize(q).slice(0, 10);
 
       // Matching uses PUBLIC data only — a category, city or text an org has
       // hidden must not make it show up (that would leak the hidden value).
       const results = [];
+      const scores = new Map();
+      const catHits = new Map();
       for (const o of await loadPublicOrgs()) {
         const p = orgsHelper.publicOrg(o);
-        if (cat && !(p.categories || []).some(c => c.slug === cat.slug)) continue;
+        if (cats.length) {
+          const hits = cats.filter(c => (p.categories || []).some(pc => pc.slug === c.slug)).length;
+          if (!hits) continue;
+          catHits.set(p, hits);
+        }
         if (city) {
           const name = city.name.toLowerCase();
           const serves = (p.service_cities || []).some(c => c.toLowerCase() === name);
@@ -324,14 +349,32 @@ module.exports = function (db, appConfig) {
           if (!serves && !basedThere) continue;
         }
         if (words.length) {
-          const hay = orgsHelper.publicSearchText(o);
-          if (!words.every(w => hay.includes(w))) continue;
+          // Every query word must match a WORD in the public text (not any
+          // substring: "rent" must not hit "parents"). Name hits rank above
+          // category hits, which rank above description/what-to-bring hits.
+          const all = tokenize(orgsHelper.publicSearchText(o));
+          const name = tokenize(p.name);
+          const cats = tokenize((p.categories || []).map(c => c.name).join(' '));
+          let score = 0;
+          if (!words.every(w => {
+            if (!all.some(t => wordMatches(t, w))) return false;
+            score += name.some(t => wordMatches(t, w)) ? 3 : cats.some(t => wordMatches(t, w)) ? 2 : 1;
+            return true;
+          })) continue;
+          scores.set(p, score);
         }
         results.push(p);
       }
-      results.sort((a, b) => a.name.localeCompare(b.name));
+      // Orgs covering more of the selected needs first, then keyword
+      // relevance, then name.
+      results.sort((a, b) =>
+        ((catHits.get(b) || 0) - (catHits.get(a) || 0)) ||
+        ((scores.get(b) || 0) - (scores.get(a) || 0)) ||
+        a.name.localeCompare(b.name));
       res.json({
-        category: cat ? { slug: cat.slug, name: cat.name } : null,
+        categories: cats.map(c => ({ slug: c.slug, name: c.name })),
+        // Single-category shape kept for older callers: the first selection.
+        category: cats.length ? { slug: cats[0].slug, name: cats[0].name } : null,
         city: city ? city.name : 'any',
         q,
         count: results.length,
