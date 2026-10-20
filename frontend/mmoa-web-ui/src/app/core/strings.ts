@@ -13,16 +13,21 @@ export const NEED_HELP_STRINGS = {
     title: 'Find help near Anna',
     intro: "Choose what you need. We'll show local nonprofits that Mission Men of Anna has verified.",
     stepNeed: '1. What do you need help with?',
-    allNeeds: 'Show everything',
+    pickHint: 'Choose one or more. No choice shows everything.',
+    clearAll: 'Clear all',
+    selectedCount: (n: number) => `${n} selected`,
     stepCity: '2. City',
     anyCity: 'Any city',
     keyword: 'Keyword (optional)',
     keywordPlaceholder: 'e.g. diapers, rent, groceries',
     search: 'Search',
+    clearSearch: 'Clear search',
     searching: 'Searching…',
-    resultsSummary: (n: number, need: string | null, city: string | null) =>
+    // needs: the selected category names; joined "food, utilities or housing".
+    resultsSummary: (n: number, needs: string[], city: string | null) =>
       `${n} ${n === 1 ? 'place helps' : 'places help'}` +
-      (need ? ` with ${need.toLowerCase()}` : '') + (city ? ` in ${city}` : ' near Anna'),
+      (needs.length ? ` with ${new Intl.ListFormat('en', { type: 'disjunction' }).format(needs.map(x => x.toLowerCase()))}` : '') +
+      (city ? ` in ${city}` : ' near Anna'),
     noResults: 'No verified nonprofits match yet. Try "Any city", or dial 211 to talk to someone about local services.',
     loadError: "We couldn't load the directory just now. Please try again, or dial 211 for help finding local services.",
     verified: '✓ Verified by MMoA',

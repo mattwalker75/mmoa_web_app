@@ -8,9 +8,14 @@ import { S } from '../core/strings';
 
 /**
  * /need-help (NeedHelp mockup): pick a need (category tiles), a city and an
- * optional keyword; results are verified + listed nonprofits only. The
- * choices live in the URL (?category=&city=&q=) so Back works and a search
- * can be shared — nothing is stored anywhere.
+ * optional keyword; results are verified + listed nonprofits only. Several
+ * needs can be picked at once (an org matching ANY of them shows, those
+ * covering more rank first); "Clear all" empties the selection, which means
+ * "show everything". The keyword filters as you type (debounced; Enter runs
+ * it at once) and "Clear search" empties it. The choices live in the URL
+ * (?category=a,b&city=&q=) so Back works and a search can be shared —
+ * nothing is stored anywhere. Typing replaces the history entry instead of
+ * adding one per keystroke.
  */
 @Component({
   selector: 'app-need-help',
@@ -25,12 +30,20 @@ import { S } from '../core/strings';
       </div>
 
       <section aria-labelledby="need-label" class="stack" style="gap:12px">
-        <h2 id="need-label" style="font-size:24px;font-weight:700;margin:0;letter-spacing:.03em">{{ S.stepNeed }}</h2>
-        <div class="cat-grid">
+        <div class="need-head">
+          <div>
+            <h2 id="need-label" style="font-size:24px;font-weight:700;margin:0;letter-spacing:.03em">{{ S.stepNeed }}</h2>
+            <p class="muted" style="margin:4px 0 0;font-size:16px">{{ S.pickHint }}</p>
+          </div>
+          <div class="need-actions">
+            @if (selected().length) { <span class="muted" style="font-size:16px">{{ S.selectedCount(selected().length) }}</span> }
+            <button type="button" class="btn btn-outline" [disabled]="!selected().length" (click)="clearAll()">{{ S.clearAll }}</button>
+          </div>
+        </div>
+        <div class="cat-grid" role="group" aria-labelledby="need-label">
           @for (c of categories(); track c.slug) {
-            <button type="button" class="cat-tile" [attr.aria-pressed]="category() === c.slug" (click)="pick(c.slug)">{{ c.name }}</button>
+            <button type="button" class="cat-tile" [attr.aria-pressed]="isOn(c.slug)" (click)="toggle(c.slug)">{{ c.name }}</button>
           }
-          <button type="button" class="cat-tile" [attr.aria-pressed]="category() === ''" (click)="pick('')">{{ S.allNeeds }}</button>
         </div>
       </section>
 
@@ -44,9 +57,10 @@ import { S } from '../core/strings';
         </div>
         <div class="field kw">
           <label for="nh-kw">{{ S.keyword }}</label>
-          <input id="nh-kw" class="input" type="search" name="q" maxlength="200" [placeholder]="S.keywordPlaceholder" [(ngModel)]="q">
+          <input id="nh-kw" class="input" type="search" name="q" maxlength="200" autocomplete="off" [placeholder]="S.keywordPlaceholder"
+                 [ngModel]="q" (ngModelChange)="onType($event)">
         </div>
-        <button type="submit" class="btn btn-primary">{{ S.search }}</button>
+        <button type="button" class="btn btn-outline" [disabled]="!q.trim()" (click)="clearKeyword()">{{ S.clearSearch }}</button>
       </form>
 
       <section aria-live="polite" [attr.aria-busy]="loading()" class="stack" style="gap:16px">
@@ -66,7 +80,7 @@ import { S } from '../core/strings';
                 <span class="chip">{{ S.verified }}</span>
               </div>
               @if (r.categories?.length) {
-                <div class="tag-row">@for (t of r.categories; track t.slug) { <span class="tag">{{ t.name }}</span> }</div>
+                <div class="tag-row">@for (t of r.categories; track t.slug) { <span class="tag" [class.match]="isOn(t.slug)">{{ t.name }}</span> }</div>
               }
               @if (r.description_html) { <div class="about" [innerHTML]="r.description_html"></div> }
               @if (r.what_to_bring?.length) {
@@ -94,7 +108,7 @@ export class NeedHelpComponent {
 
   categories = signal<Category[]>([]);
   cities = signal<City[]>([]);
-  category = signal('');
+  selected = signal<string[]>([]);
   city = signal('any');
   q = '';
   results = signal<PublicOrg[]>([]);
@@ -106,9 +120,12 @@ export class NeedHelpComponent {
   constructor() {
     this.loadMeta();
     this.route.queryParamMap.subscribe(p => {
-      this.category.set(p.get('category') || '');
+      this.selected.set((p.get('category') || '').split(',').map(s => s.trim()).filter(Boolean));
       this.city.set(p.get('city') || 'any');
-      this.q = p.get('q') || '';
+      // Only adopt the URL's keyword when it really differs (Back/Forward or a
+      // shared link) — never overwrite what's mid-typing, e.g. a trailing space.
+      const urlQ = p.get('q') || '';
+      if (urlQ !== this.q.trim()) this.q = urlQ;
       this.search();
     });
   }
@@ -121,16 +138,41 @@ export class NeedHelpComponent {
     } catch { this.error.set(true); }
   }
 
-  pick(slug: string) { this.category.set(slug); this.submit(); }
+  isOn(slug: string) { return this.selected().includes(slug); }
+  toggle(slug: string) {
+    // Keep the selection in the categories' display order (stable URLs).
+    const on = new Set(this.selected());
+    on.has(slug) ? on.delete(slug) : on.add(slug);
+    this.selected.set(this.categories().map(c => c.slug).filter(s => on.has(s)));
+    this.submit();
+  }
+  clearAll() { this.selected.set([]); this.submit(); }
 
-  /** Put the choices in the URL; the queryParamMap subscription runs the search. */
-  submit() {
+  private typing?: ReturnType<typeof setTimeout>;
+  /** Filter as you type: wait for a short pause so each keystroke isn't a request. */
+  onType(v: string) {
+    this.q = v;
+    clearTimeout(this.typing);
+    this.typing = setTimeout(() => this.submit(true), 300);
+  }
+  clearKeyword() {
+    clearTimeout(this.typing);
+    this.q = '';
+    this.submit();
+    document.getElementById('nh-kw')?.focus();
+  }
+
+  /** Put the choices in the URL; the queryParamMap subscription runs the search.
+   *  `typing` replaces the current history entry (one entry per search, not
+   *  per keystroke). */
+  submit(typing = false) {
+    if (!typing) clearTimeout(this.typing);
     const queryParams: Record<string, string | null> = {
-      category: this.category() || null,
+      category: this.selected().length ? this.selected().join(',') : null,
       city: this.city() && this.city() !== 'any' ? this.city() : null,
       q: this.q.trim() || null
     };
-    this.router.navigate([], { relativeTo: this.route, queryParams, replaceUrl: false });
+    this.router.navigate([], { relativeTo: this.route, queryParams, replaceUrl: typing });
   }
 
   private async search() {
@@ -138,10 +180,10 @@ export class NeedHelpComponent {
     this.loading.set(true);
     this.error.set(false);
     try {
-      const res = await firstValueFrom(this.api.directorySearch({ category: this.category(), city: this.city(), q: this.q.trim() }));
+      const res = await firstValueFrom(this.api.directorySearch({ categories: this.selected(), city: this.city(), q: this.q.trim() }));
       if (mine !== this.seq) return; // a newer search started
       this.results.set(res.results);
-      this.summary.set(S.resultsSummary(res.count, res.category?.name || null, res.city !== 'any' ? res.city : null));
+      this.summary.set(S.resultsSummary(res.count, (res.categories || []).map(c => c.name), res.city !== 'any' ? res.city : null));
     } catch {
       if (mine === this.seq) { this.results.set([]); this.error.set(true); }
     } finally {

@@ -130,6 +130,7 @@ export interface PublicOrg {
 }
 
 export interface SearchResponse {
+  categories: { slug: string; name: string }[];
   category: { slug: string; name: string } | null;
   city: string;
   q: string;
