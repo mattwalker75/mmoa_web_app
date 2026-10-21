@@ -28,7 +28,7 @@ import { S } from '../core/strings';
       </div>
 
       <div class="btn-row">
-        @if (org.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(org.phone)">{{ S.call }} {{ org.phone }}</a> }
+        @if (org.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(org.phone, org.phone_ext)">{{ S.call }} {{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a> }
         @if (org.map_url) { <a class="btn btn-outline" [href]="org.map_url" target="_blank" rel="noopener noreferrer">{{ S.directions }}</a> }
         @if (org.website_url) { <a class="btn btn-ghost" [href]="org.website_url" target="_blank" rel="noopener noreferrer">{{ S.website }}</a> }
       </div>
@@ -47,7 +47,7 @@ import { S } from '../core/strings';
         <dl class="kv">
           @if (org.address) { <dt>{{ S.address }}</dt><dd>{{ org.address.text }}</dd> }
           @if (org.hours) { <dt>{{ S.hours }}</dt><dd style="white-space:pre-line">{{ org.hours }}</dd> }
-          @if (org.phone) { <dt>{{ S.phone }}</dt><dd><a [href]="'tel:' + tel(org.phone)">{{ org.phone }}</a></dd> }
+          @if (org.phone) { <dt>{{ S.phone }}</dt><dd><a [href]="'tel:' + tel(org.phone, org.phone_ext)">{{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a></dd> }
           @if (org.public_email) { <dt>{{ S.email }}</dt><dd><a [href]="'mailto:' + org.public_email">{{ org.public_email }}</a></dd> }
           @if (org.website_url) { <dt>{{ S.website }}</dt><dd><a [href]="org.website_url" target="_blank" rel="noopener noreferrer">{{ host(org.website_url) }}</a></dd> }
           @if (org.facebook_url) { <dt>{{ S.facebook }}</dt><dd><a [href]="org.facebook_url" target="_blank" rel="noopener noreferrer">{{ host(org.facebook_url) }}</a></dd> }
@@ -65,7 +65,7 @@ import { S } from '../core/strings';
               <div class="ben">
                 {{ c.name }}
                 @if (c.role) { <div class="s">{{ c.role }}</div> }
-                @if (c.phone) { <div class="s"><a [href]="'tel:' + tel(c.phone)">{{ c.phone }}</a></div> }
+                @if (c.phone) { <div class="s"><a [href]="'tel:' + tel(c.phone, c.phone_ext)">{{ c.phone }}{{ c.phone_ext ? ' ext. ' + c.phone_ext : '' }}</a></div> }
                 @if (c.email) { <div class="s"><a [href]="'mailto:' + c.email">{{ c.email }}</a></div> }
               </div>
             }
@@ -77,7 +77,12 @@ import { S } from '../core/strings';
         <section>
           <h2 class="plain-h2">{{ S.photos }}</h2>
           <div class="profile-photos">
-            @for (i of org.images; track i.url) { <img [src]="i.url" [alt]="i.alt || ''" loading="lazy"> }
+            @for (i of org.images; track i.url) {
+              <figure class="photo">
+                <img [src]="i.url" [alt]="i.alt || ''" loading="lazy">
+                @if (i.alt) { <figcaption aria-hidden="true">{{ i.alt }}</figcaption> }
+              </figure>
+            }
           </div>
         </section>
       }
@@ -89,6 +94,7 @@ export class OrgViewComponent {
   /** Inside the portal preview: no page-level <h1> (the portal has its own). */
   @Input() preview = false;
   S = S;
-  tel(p: string) { const d = p.replace(/\D/g, ''); return d.length === 10 ? '+1' + d : d; }
+  /** tel: target; a "," pause before the extension makes phones dial it after connecting. */
+  tel(p: string, ext?: string | null) { const d = p.replace(/\D/g, ''); return (d.length === 10 ? '+1' + d : d) + (ext ? ',' + ext : ''); }
   host(u: string) { try { const x = new URL(u); return (x.host + x.pathname).replace(/\/$/, ''); } catch { return u; } }
 }

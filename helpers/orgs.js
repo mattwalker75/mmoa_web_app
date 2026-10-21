@@ -107,6 +107,7 @@ function publicOrg(o) {
   for (const k of ['phone', 'public_email', 'website_url', 'facebook_url', 'instagram_url', 'other_social_url', 'hours']) {
     if (pf.has(k) && o[k]) out[k] = o[k];
   }
+  if (out.phone && o.phone_ext) out.phone_ext = o.phone_ext;
   if (pf.has('description') && o.description_md) out.description_html = renderMarkdownLite(o.description_md);
   if (pf.has('what_to_bring')) {
     const list = lines(o.what_to_bring);
@@ -114,7 +115,7 @@ function publicOrg(o) {
   }
   if (pf.has('contacts')) {
     const list = o._contacts.filter(c => Number(c.is_public) === 1 && (c.name || c.email || c.phone))
-      .map(c => ({ name: c.name || null, role: c.role || null, email: c.email || null, phone: c.phone || null }));
+      .map(c => ({ name: c.name || null, role: c.role || null, email: c.email || null, phone: c.phone || null, phone_ext: (c.phone && c.phone_ext) || null }));
     if (list.length) out.contacts = list;
   }
   if (pf.has('images')) {
@@ -156,6 +157,7 @@ function privateOrg(o) {
     state: o.state || '',
     zip: o.zip || '',
     phone: o.phone || '',
+    phone_ext: o.phone_ext || '',
     public_email: o.public_email || '',
     website_url: o.website_url || '',
     facebook_url: o.facebook_url || '',
@@ -172,7 +174,7 @@ function privateOrg(o) {
     updated_at: isoOrNull(o.updated_at),
     contacts: o._contacts.map(c => ({
       contact_id: c.contact_id, name: c.name || '', role: c.role || '', email: c.email || '',
-      phone: c.phone || '', is_public: Number(c.is_public) === 1
+      phone: c.phone || '', phone_ext: c.phone_ext || '', is_public: Number(c.is_public) === 1
     })),
     images: o._images.map(i => ({ image_id: i.image_id, url: uploadUrl(i.path), alt: i.alt || '', sort: i.sort })),
     categories: o._categories.map(c => c.slug),

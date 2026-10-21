@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     state               VARCHAR(40) NULL DEFAULT 'TX',
     zip                 VARCHAR(10) NULL,
     phone               VARCHAR(40) NULL,
+    phone_ext           VARCHAR(10) NULL,
     public_email        VARCHAR(255) NULL,
     website_url         VARCHAR(500) NULL,
     facebook_url        VARCHAR(500) NULL,
@@ -167,6 +168,7 @@ CREATE TABLE IF NOT EXISTS org_contacts (
     role       VARCHAR(200) NULL,
     email      VARCHAR(255) NULL,
     phone      VARCHAR(40) NULL,
+    phone_ext  VARCHAR(10) NULL,
     is_public  TINYINT(1) NOT NULL DEFAULT 0,
     sort       INT NOT NULL DEFAULT 0,
     FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE,
@@ -321,7 +323,8 @@ INSERT IGNORE INTO categories (slug, name, sort) VALUES
     ('veterans', 'Veterans', 14),
     ('disabilities', 'Disability services', 15),
     ('legal', 'Legal help', 16),
-    ('safety', 'Domestic violence & safety', 17);
+    ('safety', 'Domestic violence & safety', 17),
+    ('other', 'Other', 99);
 
 INSERT IGNORE INTO cities (name, sort) VALUES
     ('Anna', 1), ('Melissa', 2), ('Van Alstyne', 3), ('Howe', 4), ('Weston', 5),

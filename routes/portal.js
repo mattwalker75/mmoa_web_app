@@ -22,33 +22,9 @@ const { sqlTime } = require('../helpers/sqlTime');
 const uploads = require('../helpers/uploads');
 const orgsHelper = require('../helpers/orgs');
 
-const EMAIL_STRICT_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-const PHONE_RE = /^[0-9+().\- ]{7,32}$/;
+const fmt = require('../helpers/formats');
 const ZIP_RE = /^\d{5}(-\d{4})?$/;
 const MAX_CONTACTS = 10;
-
-/** Normalize an EIN to 'XX-XXXXXXX' (accepts 12-3456789 or 123456789); null if invalid. */
-function normalizeEin(v) {
-  const s = String(v || '').trim();
-  if (!/^\d{2}-?\d{7}$/.test(s)) return null;
-  const d = s.replace('-', '');
-  return d.slice(0, 2) + '-' + d.slice(2);
-}
-
-/** Normalize a web/social URL: adds https:// when no scheme was typed; only
- *  http(s) with a dotted host is accepted. Returns '' for blank, null if bad. */
-function normalizeUrl(v) {
-  let s = String(v == null ? '' : v).trim();
-  if (!s) return '';
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
-  try {
-    const u = new URL(s);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-    if (!/\.[a-z]{2,}$/i.test(u.hostname)) return null;
-    const out = u.toString();
-    return out.length <= 500 ? out : null;
-  } catch (e) { return null; }
-}
 
 class BadInput extends Error { constructor(msg) { super(msg); this.status = 400; } }
 
@@ -141,7 +117,7 @@ module.exports = function (db, appConfig, { requireVerified }) {
       if (has('ein')) {
         const raw = String(b.ein || '').trim();
         if (raw) {
-          const ein = normalizeEin(raw);
+          const ein = fmt.normalizeEin(raw);
           if (!ein) throw new BadInput('EIN must be 9 digits (for example 12-3456789)');
           if (ein !== (cur.ein || '')) {
             if (cur.verification_status !== 'unverified') {
@@ -156,26 +132,42 @@ module.exports = function (db, appConfig, { requireVerified }) {
         ['description_md', 5000, 'Description']]) {
         if (has(k)) set[k] = str(b, k, max, { label }) || null;
       }
-      if (has('state')) set.state = (str(b, 'state', 40, { label: 'State' }) || 'TX').toUpperCase();
+      if (has('state')) {
+        const st = fmt.normalizeState(str(b, 'state', 40, { label: 'State' }));
+        if (!st) throw new BadInput('Please pick a valid US state (for example TX)');
+        set.state = st;
+      }
       if (has('zip')) {
         const zip = str(b, 'zip', 10, { label: 'ZIP' });
         if (zip && !ZIP_RE.test(zip)) throw new BadInput('ZIP must be 5 digits (or ZIP+4)');
         set.zip = zip || null;
       }
       if (has('phone')) {
-        const phone = str(b, 'phone', 32, { label: 'Phone' });
-        if (phone && !PHONE_RE.test(phone)) throw new BadInput('Please enter a valid phone number');
+        const phone = fmt.formatPhone(str(b, 'phone', 32, { label: 'Phone' }));
+        if (phone === null) throw new BadInput('Phone must be a 10-digit US number, like (972) 555-0100');
         set.phone = phone || null;
       }
+      if (has('phone_ext')) {
+        const ext = fmt.normalizeExt(str(b, 'phone_ext', 10, { label: 'Extension' }));
+        if (ext === null) throw new BadInput('Extension must be 1–6 digits');
+        set.phone_ext = ext || null;
+      }
+      // An extension means nothing without the number it belongs to.
+      if (has('phone') && !set.phone) set.phone_ext = null;
       if (has('public_email')) {
-        const em = str(b, 'public_email', 255, { label: 'Public email' }).toLowerCase();
-        if (em && !EMAIL_STRICT_RE.test(em)) throw new BadInput('Please enter a valid public email address');
+        const em = fmt.normalizeEmail(str(b, 'public_email', 255, { label: 'Public email' }));
+        if (em === null) throw new BadInput('Public email must look like name@example.org');
         set.public_email = em || null;
       }
-      for (const [k, label] of [['website_url', 'Website'], ['facebook_url', 'Facebook'], ['instagram_url', 'Instagram'], ['other_social_url', 'Other link']]) {
+      for (const [k, norm, msg] of [
+        ['website_url', fmt.normalizeUrl, 'Website must be a web address like https://example.org'],
+        ['facebook_url', fmt.normalizeFacebook, 'Facebook must be a Facebook page, like facebook.com/yourpage'],
+        ['instagram_url', fmt.normalizeInstagram, 'Instagram must be an Instagram account, like instagram.com/yourname or @yourname'],
+        ['other_social_url', fmt.normalizeUrl, 'Other link must be a web address like https://example.org']]) {
         if (!has(k)) continue;
-        const u = normalizeUrl(b[k]);
-        if (u === null) throw new BadInput(`${label} must be a web address like https://example.org`);
+        if (b[k] != null && typeof b[k] !== 'string') throw new BadInput('Links must be text');
+        const u = norm(b[k]);
+        if (u === null) throw new BadInput(msg);
         set[k] = u || null;
       }
       if (has('public_fields')) {
@@ -193,13 +185,17 @@ module.exports = function (db, appConfig, { requireVerified }) {
           if (!c || typeof c !== 'object') throw new BadInput('Bad contact entry');
           const name = str(c, 'name', 200, { label: 'Contact name' });
           const role = str(c, 'role', 200, { label: 'Contact role' });
-          const email = str(c, 'email', 255, { label: 'Contact email' }).toLowerCase();
-          const phone = str(c, 'phone', 32, { label: 'Contact phone' });
-          if (!name && !role && !email && !phone) continue; // blank row
+          const emailRaw = str(c, 'email', 255, { label: 'Contact email' });
+          const phoneRaw = str(c, 'phone', 32, { label: 'Contact phone' });
+          const ext = fmt.normalizeExt(str(c, 'phone_ext', 10, { label: 'Contact extension' }));
+          const email = fmt.normalizeEmail(emailRaw);
+          const phone = fmt.formatPhone(phoneRaw);
+          if (!name && !role && !emailRaw && !phoneRaw) continue; // blank row
           if (!name) throw new BadInput('Each contact needs a name');
-          if (email && !EMAIL_STRICT_RE.test(email)) throw new BadInput(`Contact email for ${name} is not valid`);
-          if (phone && !PHONE_RE.test(phone)) throw new BadInput(`Contact phone for ${name} is not valid`);
-          contacts.push({ name, role: role || null, email: email || null, phone: phone || null, is_public: c.is_public ? 1 : 0 });
+          if (email === null) throw new BadInput(`Contact email for ${name} must look like name@example.org`);
+          if (phone === null) throw new BadInput(`Contact phone for ${name} must be a 10-digit US number`);
+          if (ext === null) throw new BadInput(`Contact extension for ${name} must be 1–6 digits`);
+          contacts.push({ name, role: role || null, email: email || null, phone: phone || null, phone_ext: (phone && ext) || null, is_public: c.is_public ? 1 : 0 });
         }
       }
 
@@ -227,8 +223,8 @@ module.exports = function (db, appConfig, { requireVerified }) {
           await tx.runAsync('DELETE FROM org_contacts WHERE org_id = ?', [orgId]);
           let i = 0;
           for (const c of contacts) {
-            await tx.runAsync('INSERT INTO org_contacts (org_id, name, role, email, phone, is_public, sort) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              [orgId, c.name, c.role, c.email, c.phone, c.is_public, i++]);
+            await tx.runAsync('INSERT INTO org_contacts (org_id, name, role, email, phone, phone_ext, is_public, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [orgId, c.name, c.role, c.email, c.phone, c.phone_ext, c.is_public, i++]);
           }
         }
         if (categoryIds) {
@@ -334,5 +330,6 @@ module.exports = function (db, appConfig, { requireVerified }) {
   return router;
 };
 
-module.exports.normalizeEin = normalizeEin;
-module.exports.normalizeUrl = normalizeUrl;
+// Re-exported for routes/api.js (signup EIN) — the rules live in helpers/formats.js.
+module.exports.normalizeEin = fmt.normalizeEin;
+module.exports.normalizeUrl = fmt.normalizeUrl;

@@ -428,7 +428,9 @@ module.exports = function (db, appConfig) {
       orgName: appConfig.orgName || 'Mission Men of Anna Inc',
       phone: site.phone || '',
       ein: site.ein || '',
-      facebookUrl: safeHttpUrl(site.facebookUrl) || ''
+      facebookUrl: safeHttpUrl(site.facebookUrl) || '',
+      // '' unless the admin turned the Donate button on (and the link is valid).
+      donationUrl: (site.donationEnabled === true && safeHttpUrl(site.donationUrl)) || ''
     };
   }
 
@@ -483,6 +485,7 @@ module.exports = function (db, appConfig) {
         phone: f.phone,
         ein: f.ein,
         facebookUrl: f.facebookUrl,
+        donationUrl: f.donationUrl,
         logoUrl: logoUrl(),
         sections: await renderSections()
       });

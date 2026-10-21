@@ -11,6 +11,7 @@ const DEFAULTS: SiteInfo = {
   phone: '(214) 763-5546',
   ein: '33-4035685',
   facebookUrl: 'https://www.facebook.com/missionmenofanna',
+  donationUrl: '',
   logoUrl: null,
   sections: {}
 };

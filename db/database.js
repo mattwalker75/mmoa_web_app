@@ -243,7 +243,9 @@ function initMysql(cfg) {
 // SCHEMA_V2_TABLES below — its DDL is read from the setup files. Column e.g.
 //   ['events', 'image_url', 'TEXT'],
 const COLUMN_MIGRATIONS = [
-  // (none yet — the schema is at its first version)
+  // Optional phone extensions (2026-10): digits only, shown as "ext. 123".
+  ['organizations', 'phone_ext', 'VARCHAR(10)'],
+  ['org_contacts', 'phone_ext', 'VARCHAR(10)']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is
@@ -358,6 +360,26 @@ async function runTableMigrations(db) {
   }
 }
 
+// Reference rows added after a DB's first launch (a table that already
+// existed never re-runs its setup seeds). INSERT-if-missing keyed on a UNIQUE
+// column, so it's a no-op once present. To hide one, deactivate it in the
+// console — deleting it just means it comes back on the next boot.
+const ROW_MIGRATIONS = [
+  { table: 'categories', sqlite: "INSERT OR IGNORE INTO categories (slug, name, sort) VALUES ('other', 'Other', 99)",
+    mysql: "INSERT IGNORE INTO categories (slug, name, sort) VALUES ('other', 'Other', 99)" }
+];
+
+async function runRowMigrations(db) {
+  for (const m of ROW_MIGRATIONS) {
+    try {
+      const r = await db.runAsync(m[db.engine]);
+      if (r && r.changes) console.log(`[db] migration: added reference row to ${m.table}`);
+    } catch (e) {
+      console.warn(`[db] row migration ${m.table} skipped:`, (e && e.message) || e);
+    }
+  }
+}
+
 async function runColumnMigrations(db) {
   let added = 0;
   for (const [table, col, type] of COLUMN_MIGRATIONS) {
@@ -395,6 +417,7 @@ function init(appConfig) {
     .then(() => runSchemaV2Migrations(db))
     .then(() => runTableMigrations(db))
     .then(() => runColumnMigrations(db))
+    .then(() => runRowMigrations(db))
     .catch(e => console.error('[db] migrations failed:', e.message || e));
   return db;
 }

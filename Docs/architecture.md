@@ -63,7 +63,7 @@ subdomains) removed.
 |---|---|---|
 | GET | `/health` | Liveness only (outside `/api`, before logging/sessions/maintenance). `{status:'ok', service:'web-app', uptime}` |
 | GET | `/api/public/config` | `appTitle`, `appSubtitle`, `orgName`, `allowMemberRegistration`, `passwordMinLength`, `showLinksInBrowser` |
-| GET | `/api/site` | `{ appTitle, orgName, phone, ein, facebookUrl, logoUrl, sections: {hero, about, help, partner, footer} }` (tokens applied) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
+| GET | `/api/site` | `{ appTitle, orgName, phone, ein, facebookUrl, donationUrl, logoUrl, sections: {hero, about, help, partner, footer} }` (tokens applied) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
 | GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. Published only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
 | GET | `/api/events/:slug` | `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 if unpublished |
 | GET | `/api/raffles?status=current\|past` | `{ status, raffles: [Raffle] }`. current = open/closed, past = drawn; published only; ≤50 |

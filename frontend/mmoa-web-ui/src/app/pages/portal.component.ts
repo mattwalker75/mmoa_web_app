@@ -8,7 +8,8 @@ import { SiteService } from '../core/site.service';
 import { City, OrgContact, OrgImage, PortalPayload } from '../core/models';
 import { apiError } from '../core/errors';
 import { resizeImage } from '../core/image-resize';
-import { OrgViewComponent } from '../shared/org-view.component';
+import { FIELD_RULES, US_STATES, formatPhone, maskInput, normalizeEmail, normalizeExt, typeEin, typeExt, typePhone } from '../core/formats';
+import { ProfilePreviewDialogComponent } from '../shared/profile-preview-dialog.component';
 import { PasswordInputComponent } from '../shared/password-input.component';
 
 /** Profile fields with a Public/Hidden switch, in the order they appear. */
@@ -28,7 +29,7 @@ const FIELD_NAMES: Record<string, string> = {
   images: 'Photos', service_cities: 'Cities served', categories: 'Services'
 };
 
-type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'phone' | 'public_email' |
+type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'phone' | 'phone_ext' | 'public_email' |
   'website_url' | 'facebook_url' | 'instagram_url' | 'other_social_url' | 'description_md' | 'hours' | 'what_to_bring', string>;
 
 /**
@@ -36,13 +37,14 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
  * "Need Help?" profile: organization details, services (categories +
  * cities), what to bring, contacts, photos (≤5; resized in the browser),
  * per-field Public/Hidden switches and the "list my organization" switch,
- * a preview of exactly what the public sees, and login & password.
+ * a "Preview public profile" pop-up (the real search card + full profile
+ * page, from the last saved data), and login & password.
  * Text fields save together with "Save changes"; photo changes save at once.
  */
 @Component({
   selector: 'app-portal',
   standalone: true,
-  imports: [FormsModule, RouterLink, OrgViewComponent, PasswordInputComponent],
+  imports: [FormsModule, RouterLink, ProfilePreviewDialogComponent, PasswordInputComponent],
   template: `
     @if (!data()) {
       @if (loadErr()) { <div class="page"><div class="alert alert-error" role="alert">{{ loadErr() }}</div></div> }
@@ -73,11 +75,14 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
         }
       }
 
+      <app-profile-preview-dialog [org]="data()!.preview" [isPublic]="data()!.isPublic" [loading]="previewLoading()" />
+
       <div class="page">
         <div class="portal">
           <nav class="portal-nav" aria-label="Profile sections">
             @for (s of sections; track s.id) {
               <a routerLink="/portal" [fragment]="s.id" [class.on]="frag() === s.id" [attr.aria-current]="frag() === s.id ? 'location' : null">{{ s.label }}{{ s.id === 'photos' ? ' (' + images().length + ' of ' + maxImages() + ')' : '' }}</a>
+              @if (s.id === 'visibility') { <button type="button" class="nav-btn" (click)="openPreview()" aria-haspopup="dialog">Preview public profile</button> }
             }
           </nav>
 
@@ -97,7 +102,8 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                 <div class="prow">
                   <label for="p-ein">EIN</label>
                   <div class="ctl">
-                    <input id="p-ein" class="input" name="ein" [(ngModel)]="f.ein" maxlength="10" inputmode="numeric" [disabled]="status() !== 'unverified'" aria-describedby="p-ein-hint">
+                    <input id="p-ein" class="input" name="ein" [ngModel]="f.ein" (ngModelChange)="f.ein = typeEin($event)" (input)="mask($event, typeEin)" (blur)="check('ein')" maxlength="10" inputmode="numeric" placeholder="12-3456789" [disabled]="status() !== 'unverified'" [attr.aria-invalid]="!!errs()['ein']" aria-describedby="p-ein-hint p-ein-err">
+                    @if (errs()['ein']) { <div class="field-err" id="p-ein-err" role="alert">{{ errs()['ein'] }}</div> }
                     <div class="hint" id="p-ein-hint">{{ status() === 'unverified' ? 'Used only to verify your 501(c)(3) status.' : "Locked after review — call us to change it." }}</div>
                   </div>
                   <span class="vis">Never public</span>
@@ -109,17 +115,33 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                     <input class="input" style="margin-top:8px" name="address_line2" [(ngModel)]="f.address_line2" maxlength="200" autocomplete="address-line2" placeholder="Suite / building (optional)" aria-label="Address line 2">
                     <div class="grid-3" style="margin-top:8px">
                       <input class="input" name="city" [(ngModel)]="f.city" maxlength="100" autocomplete="address-level2" placeholder="City" aria-label="City">
-                      <input class="input" name="state" [(ngModel)]="f.state" maxlength="40" autocomplete="address-level1" placeholder="State" aria-label="State">
+                      <input class="input" name="state" list="us-states" [(ngModel)]="f.state" (blur)="check('state')" maxlength="40" autocomplete="address-level1" placeholder="State" aria-label="State" [attr.aria-invalid]="!!errs()['state']" aria-describedby="p-state-err">
                       <input class="input" name="zip" [(ngModel)]="f.zip" maxlength="10" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP" aria-label="ZIP code">
                     </div>
+                    <datalist id="us-states">@for (st of states; track st[0]) { <option [value]="st[0]">{{ st[1] }}</option> }</datalist>
+                    @if (errs()['state']) { <div class="field-err" id="p-state-err" role="alert">{{ errs()['state'] }}</div> }
                   </div>
                   <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('address')" (click)="flip('address')" [attr.aria-label]="'Address: ' + (isPub('address') ? 'public' : 'hidden')">{{ isPub('address') ? 'Public' : 'Hidden' }}</button>
                 </div>
                 @for (r of textRows; track r.key) {
                   <div class="prow">
                     <label [for]="'p-' + r.key">{{ r.label }}</label>
-                    <input class="input ctl" [id]="'p-' + r.key" [name]="r.key" [type]="r.type || 'text'" [placeholder]="r.placeholder || ''"
-                      [attr.autocomplete]="r.auto || 'off'" maxlength="500" [ngModel]="getF(r.key)" (ngModelChange)="setF(r.key, $event)">
+                    <div class="ctl">
+                      <input class="input" [id]="'p-' + r.key" [name]="r.key" [type]="r.type || 'text'" [placeholder]="r.placeholder || ''"
+                        [attr.autocomplete]="r.auto || 'off'" maxlength="500" [attr.inputmode]="r.key === 'phone' ? 'tel' : null"
+                        [ngModel]="getF(r.key)" (ngModelChange)="setF(r.key, $event)" (input)="r.key === 'phone' && mask($event, typePhone)" (blur)="check(r.key)"
+                        [attr.aria-invalid]="!!errs()[r.key]" [attr.aria-describedby]="errs()[r.key] ? 'p-err-' + r.key : null">
+                      @if (r.key === 'phone') {
+                        <div class="ext-row">
+                          <label for="p-phone_ext">Ext.</label>
+                          <input id="p-phone_ext" class="input ext" name="phone_ext" inputmode="numeric" maxlength="6" placeholder="Optional"
+                            [ngModel]="f.phone_ext" (ngModelChange)="f.phone_ext = typeExt($event)" (input)="mask($event, typeExt)" (blur)="check('phone_ext')"
+                            [attr.aria-invalid]="!!errs()['phone_ext']">
+                        </div>
+                        @if (errs()['phone_ext']) { <div class="field-err" role="alert">{{ errs()['phone_ext'] }}</div> }
+                      }
+                      @if (errs()[r.key]) { <div class="field-err" [id]="'p-err-' + r.key" role="alert">{{ errs()[r.key] }}</div> }
+                    </div>
                     <button type="button" class="vis-btn" [attr.aria-pressed]="isPub(r.vis)" (click)="flip(r.vis)" [attr.aria-label]="r.label + ': ' + (isPub(r.vis) ? 'public' : 'hidden')">{{ isPub(r.vis) ? 'Public' : 'Hidden' }}</button>
                   </div>
                 }
@@ -146,16 +168,11 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('categories')" (click)="flip('categories')" [attr.aria-label]="'Services: ' + (isPub('categories') ? 'public' : 'hidden')">{{ isPub('categories') ? 'Public' : 'Hidden' }}</button>
               </div>
               <p class="muted">Pick every category that fits — people search by these. (Hidden categories aren't used for search either.)</p>
-              <fieldset style="border:0;padding:0;margin:0">
-                <legend class="sr-only">Service categories</legend>
-                <div class="cat-checks">
-                  @for (c of data()!.options.categories; track c.slug) {
-                    <label [class.on]="cats().includes(c.slug)">
-                      <input type="checkbox" [checked]="cats().includes(c.slug)" (change)="toggleCat(c.slug)"> {{ c.name }}
-                    </label>
-                  }
-                </div>
-              </fieldset>
+              <div class="cat-checks" role="group" aria-label="Service categories">
+                @for (c of data()!.options.categories; track c.slug) {
+                  <button type="button" class="svc-tile" [attr.aria-pressed]="cats().includes(c.slug)" (click)="toggleCat(c.slug)">{{ c.name }}</button>
+                }
+              </div>
               <div class="sec-vis" style="margin-top:22px">
                 <h3 style="margin:0;font-size:22px">Cities we serve</h3>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('service_cities')" (click)="flip('service_cities')" [attr.aria-label]="'Cities served: ' + (isPub('service_cities') ? 'public' : 'hidden')">{{ isPub('service_cities') ? 'Public' : 'Hidden' }}</button>
@@ -180,7 +197,10 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                 <h2 id="h-bring" style="margin:0">What to bring</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('what_to_bring')" (click)="flip('what_to_bring')" [attr.aria-label]="'What to bring: ' + (isPub('what_to_bring') ? 'public' : 'hidden')">{{ isPub('what_to_bring') ? 'Public' : 'Hidden' }}</button>
               </div>
-              <label for="p-bring" class="muted" style="display:block;margin-bottom:8px">One item per line — e.g. "Photo ID", "Proof of address".</label>
+              <label for="p-bring" style="display:block;margin-bottom:8px">
+                <span style="display:block;font-weight:600">Enter the items and information people will need to bring with them when asking for your help.</span>
+                <span class="muted">One item per line — e.g. "Photo ID", "Proof of address".</span>
+              </label>
               <textarea id="p-bring" class="textarea" name="what_to_bring" rows="5" maxlength="2000" [(ngModel)]="f.what_to_bring"></textarea>
             </section>
 
@@ -193,11 +213,14 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
               <p class="muted">People at your organization. Only contacts marked "Show publicly" appear on your profile.</p>
               @for (c of contacts; track $index; let i = $index) {
                 <div class="contact-row" role="group" [attr.aria-label]="'Contact ' + (i + 1)">
-                  <div class="field"><label [for]="'c-name-' + i">Name</label><input class="input" [id]="'c-name-' + i" [name]="'c-name-' + i" maxlength="200" [(ngModel)]="c.name"></div>
-                  <div class="field"><label [for]="'c-role-' + i">Role</label><input class="input" [id]="'c-role-' + i" [name]="'c-role-' + i" maxlength="200" [(ngModel)]="c.role"></div>
-                  <div class="field"><label [for]="'c-email-' + i">Email</label><input class="input" type="email" [id]="'c-email-' + i" [name]="'c-email-' + i" maxlength="255" [(ngModel)]="c.email"></div>
-                  <div class="field"><label [for]="'c-phone-' + i">Phone</label><input class="input" type="tel" [id]="'c-phone-' + i" [name]="'c-phone-' + i" maxlength="32" [(ngModel)]="c.phone"></div>
-                  <div class="btn-row" style="gap:4px">
+                  <div class="field c-name"><label [for]="'c-name-' + i">Name</label><input class="input" [id]="'c-name-' + i" [name]="'c-name-' + i" maxlength="200" [(ngModel)]="c.name"></div>
+                  <div class="field c-role"><label [for]="'c-role-' + i">Role</label><input class="input" [id]="'c-role-' + i" [name]="'c-role-' + i" maxlength="200" [(ngModel)]="c.role"></div>
+                  <div class="field c-email"><label [for]="'c-email-' + i">Email</label><input class="input" type="email" [id]="'c-email-' + i" [name]="'c-email-' + i" maxlength="255" [(ngModel)]="c.email" (blur)="checkContact(i, 'email')" [attr.aria-invalid]="!!errs()['c-email-' + i]">
+                    @if (errs()['c-email-' + i]) { <div class="field-err" role="alert">{{ errs()['c-email-' + i] }}</div> }</div>
+                  <div class="field c-phone"><label [for]="'c-phone-' + i">Phone</label><input class="input" type="tel" inputmode="tel" [id]="'c-phone-' + i" [name]="'c-phone-' + i" maxlength="32" placeholder="(972) 555-0100" [ngModel]="c.phone" (ngModelChange)="c.phone = typePhone($event)" (input)="mask($event, typePhone)" (blur)="checkContact(i, 'phone')" [attr.aria-invalid]="!!errs()['c-phone-' + i]">
+                    @if (errs()['c-phone-' + i]) { <div class="field-err" role="alert">{{ errs()['c-phone-' + i] }}</div> }</div>
+                  <div class="field c-ext"><label [for]="'c-ext-' + i">Ext.</label><input class="input" inputmode="numeric" maxlength="6" placeholder="Optional" [id]="'c-ext-' + i" [name]="'c-ext-' + i" [ngModel]="c.phone_ext || ''" (ngModelChange)="c.phone_ext = typeExt($event)" (input)="mask($event, typeExt)"></div>
+                  <div class="btn-row c-actions" style="gap:4px">
                     <label class="check"><input type="checkbox" [name]="'c-pub-' + i" [(ngModel)]="c.is_public"> Show publicly</label>
                     <button type="button" class="btn btn-danger btn-sm" (click)="removeContact(i)" [attr.aria-label]="'Remove contact ' + (c.name || (i + 1))">Remove</button>
                   </div>
@@ -253,18 +276,12 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                 @if (saveErr()) { <span style="color:var(--danger-text)" role="alert">{{ saveErr() }}</span> }
                 @if (saveMsg()) { <span style="color:var(--chip-text)">{{ saveMsg() }}</span> }
               </span>
-              <a class="btn btn-outline" routerLink="/portal" fragment="preview">Preview public profile</a>
+              <button type="button" class="btn btn-primary" (click)="openPreview()" aria-haspopup="dialog">Preview Public Profile</button>
               <button type="submit" class="btn btn-primary" [disabled]="saving()">
                 @if (saving()) { <span class="spinner" role="status" aria-label="Saving"></span> } @else { Save changes }
               </button>
             </div>
 
-            <!-- Preview -->
-            <section id="preview" class="card" aria-labelledby="h-prev">
-              <h2 id="h-prev">Preview public profile</h2>
-              <p class="muted">Exactly what people see in "Need Help?"{{ data()!.isPublic ? '' : ' once you are verified and listed' }} — based on your last saved changes.</p>
-              <div class="preview-box"><app-org-view [org]="data()!.preview" [preview]="true" /></div>
-            </section>
 
             <!-- Login & password -->
             <section id="login" class="card" aria-labelledby="h-login">
@@ -309,7 +326,7 @@ export class PortalComponent {
   sections = [
     { id: 'organization', label: 'Organization' }, { id: 'services', label: 'Services we provide' },
     { id: 'bring', label: 'What to bring' }, { id: 'contacts', label: 'Contacts' }, { id: 'photos', label: 'Photos' },
-    { id: 'visibility', label: 'Visibility' }, { id: 'preview', label: 'Preview public profile' }, { id: 'login', label: 'Login & password' }
+    { id: 'visibility', label: 'Visibility' }, { id: 'login', label: 'Login & password' }
   ];
   textRows = TEXT_ROWS;
 
@@ -351,7 +368,7 @@ export class PortalComponent {
   }
 
   private blankForm(): FormModel {
-    return { name: '', ein: '', address_line1: '', address_line2: '', city: '', state: 'TX', zip: '', phone: '', public_email: '',
+    return { name: '', ein: '', address_line1: '', address_line2: '', city: '', state: 'TX', zip: '', phone: '', phone_ext: '', public_email: '',
       website_url: '', facebook_url: '', instagram_url: '', other_social_url: '', description_md: '', hours: '', what_to_bring: '' };
   }
 
@@ -368,6 +385,8 @@ export class PortalComponent {
     const o = p.org;
     const f = this.blankForm();
     for (const k of Object.keys(f) as (keyof FormModel)[]) f[k] = (o as unknown as Record<string, string>)[k] ?? '';
+    if (!f.state) f.state = 'TX';
+    this.errs.set({});
     this.f = f;
     this.pub.set([...o.public_fields]);
     this.listed.set(o.is_listed);
@@ -379,25 +398,68 @@ export class PortalComponent {
   }
 
   getF(k: string): string { return this.f[k as keyof FormModel]; }
-  setF(k: string, v: string) { this.f[k as keyof FormModel] = v; }
+  setF(k: string, v: string) { this.f[k as keyof FormModel] = k === 'phone' ? typePhone(v) : v; }
+
+  // ── Field formatting / validation (rules in core/formats.ts) ───────────
+  states = US_STATES;
+  typeEin = typeEin;
+  typePhone = typePhone;
+  typeExt = typeExt;
+  /** Keep the box itself in step with the formatter (see maskInput). */
+  mask(e: Event, fmt: (v: string) => string) { maskInput(e, fmt); }
+  errs = signal<Record<string, string>>({});
+  private setErr(key: string, msg: string) { this.errs.update(e => { const n = { ...e }; if (msg) n[key] = msg; else delete n[key]; return n; }); }
+  /** On leaving a field: store the clean form, or show why it isn't valid. */
+  check(key: string): boolean {
+    const rule = FIELD_RULES[key];
+    if (!rule || (key === 'ein' && this.status() !== 'unverified')) return true;
+    const v = rule[0](this.getF(key));
+    if (v === null) { this.setErr(key, rule[1]); return false; }
+    this.f[key as keyof FormModel] = v;
+    this.setErr(key, '');
+    return true;
+  }
+  checkContact(i: number, kind: 'email' | 'phone'): boolean {
+    const c = this.contacts[i];
+    if (!c) return true;
+    if (kind === 'phone') c.phone_ext = normalizeExt(c.phone_ext || '') ?? '';
+    const v = kind === 'email' ? normalizeEmail(c.email) : formatPhone(c.phone);
+    const key = `c-${kind}-${i}`;
+    if (v === null) {
+      this.setErr(key, kind === 'email' ? 'Enter an email like name@example.org.' : 'Enter a 10-digit phone number, like (972) 555-0100.');
+      return false;
+    }
+    c[kind] = v;
+    this.setErr(key, '');
+    return true;
+  }
+  /** Check every rule before saving; focus the first problem field. */
+  private checkAll(): boolean {
+    let ok = true;
+    for (const k of Object.keys(FIELD_RULES)) ok = this.check(k) && ok;
+    this.contacts.forEach((_, i) => { ok = this.checkContact(i, 'email') && ok; ok = this.checkContact(i, 'phone') && ok; });
+    if (!ok) setTimeout(() => (document.querySelector('.portal-main [aria-invalid="true"]') as HTMLElement | null)?.focus());
+    return ok;
+  }
   isPub(k: string) { return this.pub().includes(k); }
   flip(k: string) { this.pub.set(this.isPub(k) ? this.pub().filter(x => x !== k) : [...this.pub(), k]); }
   toggleCat(slug: string) { this.cats.set(this.cats().includes(slug) ? this.cats().filter(s => s !== slug) : [...this.cats(), slug]); }
   addCity(id: string) { const n = Number(id); if (n && !this.cityIds().includes(n)) this.cityIds.set([...this.cityIds(), n]); }
   removeCity(id: number) { this.cityIds.set(this.cityIds().filter(x => x !== id)); }
-  addContact() { this.contacts = [...this.contacts, { name: '', role: '', email: '', phone: '', is_public: false }]; }
-  removeContact(i: number) { this.contacts = this.contacts.filter((_, j) => j !== i); }
+  addContact() { this.contacts = [...this.contacts, { name: '', role: '', email: '', phone: '', phone_ext: '', is_public: false }]; }
+  removeContact(i: number) { this.contacts = this.contacts.filter((_, j) => j !== i); this.errs.update(e => Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('c-')))); }
   minLen() { return this.auth.config()?.passwordMinLength || 8; }
 
   async save() {
     if (this.saving()) return;
     this.saveMsg.set(''); this.saveErr.set('');
     if ((this.f.name || '').trim().length < 2) { this.saveErr.set('Please enter your organization name.'); return; }
+    if (!this.checkAll()) { this.saveErr.set('Please fix the highlighted fields.'); return; }
     const body: Record<string, unknown> = {
       ...this.f,
       public_fields: this.pub(),
       is_listed: this.listed(),
-      contacts: this.contacts.map(c => ({ name: c.name, role: c.role, email: c.email, phone: c.phone, is_public: c.is_public })),
+      contacts: this.contacts.map(c => ({ name: c.name, role: c.role, email: c.email, phone: c.phone, phone_ext: c.phone ? (c.phone_ext || '') : '', is_public: c.is_public })),
       categories: this.cats(),
       city_ids: this.cityIds()
     };
@@ -467,6 +529,17 @@ export class PortalComponent {
     } finally {
       this.photoBusy.set(false);
     }
+  }
+
+  // ── Preview pop-up ──────────────────────────────────────────────────────
+  @ViewChild(ProfilePreviewDialogComponent) previewDlg?: ProfilePreviewDialogComponent;
+  previewLoading = signal(false);
+  /** Open the pop-up, then pull the latest SAVED public view into it. */
+  async openPreview() {
+    this.previewLoading.set(true);
+    this.previewDlg?.open();
+    await this.refreshPreview();
+    this.previewLoading.set(false);
   }
 
   /** Re-read the saved preview after a photo change (keeps unsaved text edits). */

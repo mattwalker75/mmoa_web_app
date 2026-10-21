@@ -1,10 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Category, City, PublicOrg } from '../core/models';
 import { S } from '../core/strings';
+import { OrgCardComponent } from '../shared/org-card.component';
 
 /**
  * /need-help (NeedHelp mockup): pick a need (category tiles), a city and an
@@ -20,7 +21,7 @@ import { S } from '../core/strings';
 @Component({
   selector: 'app-need-help',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, OrgCardComponent],
   template: `
     <div class="page stack" style="gap:30px">
       <div>
@@ -74,26 +75,7 @@ import { S } from '../core/strings';
             <div class="empty">{{ S.noResults }}</div>
           }
           @for (r of results(); track r.org_id) {
-            <article class="org-card">
-              <div class="title-row">
-                <h3><a [routerLink]="['/need-help/org', r.org_id]">{{ r.name }}</a></h3>
-                <span class="chip">{{ S.verified }}</span>
-              </div>
-              @if (r.categories?.length) {
-                <div class="tag-row">@for (t of r.categories; track t.slug) { <span class="tag" [class.match]="isOn(t.slug)">{{ t.name }}</span> }</div>
-              }
-              @if (r.description_html) { <div class="about" [innerHTML]="r.description_html"></div> }
-              @if (r.what_to_bring?.length) {
-                <div class="inset"><div class="bring-title">{{ S.whatToBring }}</div><div class="soft">{{ r.what_to_bring!.join(' · ') }}</div></div>
-              }
-              <div class="btn-row" style="gap:10px">
-                @if (r.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(r.phone)">{{ S.call }} {{ r.phone }}</a> }
-                @if (r.map_url) { <a class="btn btn-outline" [href]="r.map_url" target="_blank" rel="noopener noreferrer">{{ S.directions }}</a> }
-                @if (r.website_url) { <a [href]="r.website_url" target="_blank" rel="noopener noreferrer" style="font-weight:700;padding:10px 6px">{{ S.website }}</a> }
-                <a [routerLink]="['/need-help/org', r.org_id]" style="font-weight:700;padding:10px 6px">{{ S.fullProfile }}<span class="sr-only">: {{ r.name }}</span></a>
-                @if (where(r)) { <span class="muted" style="font-size:16px">{{ where(r) }}</span> }
-              </div>
-            </article>
+            <app-org-card [org]="r" [highlight]="selected()" />
           }
         }
       </section>
@@ -191,6 +173,4 @@ export class NeedHelpComponent {
     }
   }
 
-  tel(p: string) { const d = p.replace(/\D/g, ''); return d.length === 10 ? '+1' + d : d; }
-  where(r: PublicOrg) { return [r.address?.city || r.service_cities?.[0] || '', r.hours || ''].filter(Boolean).join(' · '); }
 }

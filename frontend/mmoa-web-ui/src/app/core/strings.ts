@@ -26,7 +26,7 @@ export const NEED_HELP_STRINGS = {
     // needs: the selected category names; joined "food, utilities or housing".
     resultsSummary: (n: number, needs: string[], city: string | null) =>
       `${n} ${n === 1 ? 'place helps' : 'places help'}` +
-      (needs.length ? ` with ${new Intl.ListFormat('en', { type: 'disjunction' }).format(needs.map(x => x.toLowerCase()))}` : '') +
+      (needs.length ? ` with ${new Intl.ListFormat('en', { type: 'disjunction' }).format(needs.map(x => x.toLowerCase() === 'other' ? 'other needs' : x.toLowerCase()))}` : '') +
       (city ? ` in ${city}` : ' near Anna'),
     noResults: 'No verified nonprofits match yet. Try "Any city", or dial 211 to talk to someone about local services.',
     loadError: "We couldn't load the directory just now. Please try again, or dial 211 for help finding local services.",

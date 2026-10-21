@@ -1,19 +1,21 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { SiteService } from '../core/site.service';
-import { EventItem, Raffle } from '../core/models';
+import { EventItem, PublicOrg, Raffle } from '../core/models';
 import { mediumDate } from '../core/format';
 import { CORE_VALUES, PHOTOS } from '../core/site-content';
 import { EventCardComponent } from '../shared/event-card.component';
+import { NonprofitCarouselComponent } from '../shared/nonprofit-carousel.component';
 import { RouteLinksDirective } from '../shared/route-links.directive';
 
-/** Home (Main mockup): hero, 3 upcoming events, current raffle, story, partner band. */
+/** Home (Main mockup): hero, 3 upcoming events, current raffle, a sliding strip
+ *  of partner nonprofits, story, partner band. */
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterLink, EventCardComponent, RouteLinksDirective],
+  imports: [RouterLink, EventCardComponent, RouteLinksDirective, NonprofitCarouselComponent],
   template: `
     <section class="hero-sec" appRouteLinks aria-label="Welcome" [innerHTML]="site.section('hero') || ''"></section>
 
@@ -53,6 +55,19 @@ import { RouteLinksDirective } from '../shared/route-links.directive';
       </section>
     }
 
+    @if (showNonprofits()) {
+      <section class="home-sec" aria-labelledby="np-h" style="padding-bottom:24px">
+        <div class="sec-head">
+          <div>
+            <span class="kicker">Local partners</span>
+            <h2 id="np-h" style="margin-top:6px">Nonprofits serving our community</h2>
+          </div>
+          <a routerLink="/need-help">Find help →</a>
+        </div>
+        <app-nonprofit-carousel [orgs]="orgs()" />
+      </section>
+    }
+
     <section class="home-sec" aria-label="Our story">
       <div class="story">
         <div style="display:flex;flex-direction:column;gap:16px">
@@ -85,6 +100,8 @@ export class HomeComponent {
   events = signal<EventItem[]>([]);
   raffle = signal<Raffle | null>(null);
   loading = signal(true);
+  orgs = signal<PublicOrg[]>([]);
+  showNonprofits = computed(() => this.orgs().length > 0);
   values = CORE_VALUES;
   photos = [PHOTOS.booth, PHOTOS.volunteers, PHOTOS.fundraiser, PHOTOS.legion];
   date = mediumDate;
@@ -99,5 +116,7 @@ export class HomeComponent {
     if (ev.status === 'fulfilled') this.events.set(ev.value.events.slice(0, 3));
     if (ra.status === 'fulfilled') this.raffle.set(ra.value.raffles[0] || null);
     this.loading.set(false);
+    try { this.orgs.set((await firstValueFrom(this.api.directorySearch({}))).results); }
+    catch { /* no strip — the rest of the page is unaffected */ }
   }
 }
