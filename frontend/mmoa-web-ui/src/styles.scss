@@ -441,3 +441,31 @@ dialog.flyer-dialog::backdrop { background: rgba(0,0,0,.8); }
 dialog.preview-dialog { width: min(96vw, 980px); }
 .preview-dialog .pp-body { padding: 20px 24px 28px; }
 .preview-dialog .pp-h { font-family: var(--font); text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 20px; margin: 0; color: var(--link); }
+
+
+/* ── Home: partner nonprofit slideshow (left → right marquee) ─────────── */
+.np-carousel { display: flex; flex-direction: column; }
+.np-toggle { align-self: flex-end; margin-bottom: 12px; }
+.np-viewport { overflow: hidden; border-radius: var(--radius); -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
+.np-track { display: flex; width: max-content; animation: np-slide linear infinite; animation-duration: 60s; }
+.np-carousel:hover .np-track, .np-carousel:focus-within .np-track, .np-carousel.paused .np-track { animation-play-state: paused; }
+@keyframes np-slide { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+.np-list { display: flex; gap: 16px; list-style: none; margin: 0; padding: 4px 8px 4px 8px; }
+.np-card { width: 280px; display: flex; flex-direction: column; height: 100%; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; color: var(--text); text-decoration: none; }
+.np-card:hover { border-color: var(--outline); }
+.np-card:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.np-card img, .np-initials { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
+.np-initials { display: flex; align-items: center; justify-content: center; background: var(--band-bg, #24311a); color: var(--chip-text); font-family: var(--font-head); font-weight: 800; font-size: 56px; }
+.np-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.np-name { font-family: var(--font-head); font-weight: 700; font-size: 22px; line-height: 1.1; }
+.np-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-tags .tag { font-size: 13px; padding: 3px 10px; }
+.np-where { color: var(--muted); font-size: 15px; }
+/* Few cards, or the visitor asked for less motion: a still row they can scroll. */
+.np-carousel.static .np-viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+.np-carousel.static .np-track { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .np-track { animation: none !important; }
+  .np-viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .np-list[aria-hidden="true"], .np-toggle { display: none; }
+}
