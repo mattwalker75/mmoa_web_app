@@ -32,6 +32,8 @@ export interface SiteInfo {
   phone: string;
   ein: string;
   facebookUrl: string;
+  /** Payment link for the "Donate" button; '' = no button. */
+  donationUrl: string;
   /** /content/images/logo.png|svg when the admin added one, else null. */
   logoUrl: string | null;
   /** hero, about, help, partner, footer — trusted admin HTML, tokens applied. */

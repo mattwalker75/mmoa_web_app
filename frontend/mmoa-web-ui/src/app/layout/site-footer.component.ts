@@ -33,6 +33,7 @@ import { S } from '../core/strings';
             </div>
             <nav class="foot-links" aria-label="Footer">
               <a [href]="site.info().facebookUrl" target="_blank" rel="noopener">Facebook</a>
+              @if (site.info().donationUrl; as url) { <a [href]="url" target="_blank" rel="noopener">Donate</a> }
               <a routerLink="/partner">Partner with us</a>
               <a routerLink="/login">Nonprofit login</a>
             </nav>

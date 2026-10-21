@@ -22,11 +22,16 @@ const defaults = {
   orgName: 'Mission Men of Anna Inc',
   publicBaseUrl: 'http://localhost:3004',
   // Public contact facts shown in the header/footer and served by GET
-  // /api/site (also the {{phone}} / {{ein}} / {{facebookUrl}} website tokens).
+  // /api/site (also the {{phone}} / {{ein}} / {{facebookUrl}} / {{donationUrl}}
+  // website tokens). donationUrl: a payment link (e.g. Stripe or PayPal) for
+  // the header "Donate" button, shown only while donationEnabled is true
+  // (both set from the admin console).
   site: {
     phone: '(214) 763-5546',
     ein: '33-4035685',
-    facebookUrl: 'https://www.facebook.com/missionmenofanna'
+    facebookUrl: 'https://www.facebook.com/missionmenofanna',
+    donationEnabled: false,
+    donationUrl: ''
   },
   // Uploaded images (uploads/<kind>/…): largest accepted file, in MB.
   uploads: { maxMb: 8 },

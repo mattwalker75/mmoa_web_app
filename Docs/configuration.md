@@ -23,6 +23,7 @@ the values you want to override. Keys prefixed with `_` are comments.
 | `passwordResetTokenTtlHours` | `2` | Reset-link lifetime |
 | `allowMemberRegistration` | `true` | Toggle nonprofit sign-up (Partner With Us → create a login) |
 | `site.phone` / `site.ein` / `site.facebookUrl` | `(214) 763-5546` / `33-4035685` / `https://www.facebook.com/missionmenofanna` | Public contact facts in the header/footer/pages; returned by `GET /api/site`; also the `{{phone}}`, `{{phoneTel}}`, `{{ein}}`, `{{facebookUrl}}` website tokens |
+| `site.donationEnabled` / `site.donationUrl` | `false` / `''` | Optional "Donate" button in the header, opening the donation payment link (e.g. a Stripe Payment Link) in a new tab. Shown only while `donationEnabled` is true AND the link is a valid http(s) URL. Both edited in the admin console under Web App Settings → General, which refuses to enable the button without a valid link. `{{donationUrl}}` token is '' while disabled |
 | `uploads.maxMb` | `8` | Largest accepted uploaded image (portal photos; the console enforces the same for its uploads) |
 | `maintenanceCommand` | `./scripts/maintenance.sh` | Run by the admin console (cwd = app dir) with `--enable --title --message` / `--disable` / `--status` |
 
