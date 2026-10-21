@@ -115,6 +115,7 @@ export interface PublicOrg {
   address?: { line1: string | null; line2: string | null; city: string | null; state: string | null; zip: string | null; text: string };
   map_url?: string | null;
   phone?: string;
+  phone_ext?: string;
   public_email?: string;
   website_url?: string;
   facebook_url?: string;
@@ -123,7 +124,7 @@ export interface PublicOrg {
   hours?: string;
   description_html?: string;
   what_to_bring?: string[];
-  contacts?: { name: string | null; role: string | null; email: string | null; phone: string | null }[];
+  contacts?: { name: string | null; role: string | null; email: string | null; phone: string | null; phone_ext?: string | null }[];
   images?: { url: string; alt: string }[];
   service_cities?: string[];
   categories?: { slug: string; name: string }[];
@@ -138,7 +139,7 @@ export interface SearchResponse {
   results: PublicOrg[];
 }
 
-export interface OrgContact { contact_id?: number; name: string; role: string; email: string; phone: string; is_public: boolean; }
+export interface OrgContact { contact_id?: number; name: string; role: string; email: string; phone: string; phone_ext?: string; is_public: boolean; }
 export interface OrgImage { image_id: number; url: string; alt: string; sort: number; }
 
 /** The org's own full profile (portal). */
@@ -147,7 +148,7 @@ export interface PrivateOrg {
   name: string;
   ein: string;
   address_line1: string; address_line2: string; city: string; state: string; zip: string;
-  phone: string; public_email: string;
+  phone: string; phone_ext: string; public_email: string;
   website_url: string; facebook_url: string; instagram_url: string; other_social_url: string;
   description_md: string; hours: string; what_to_bring: string;
   public_fields: string[];

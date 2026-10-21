@@ -341,8 +341,10 @@ dialog.flyer-dialog::backdrop { background: rgba(0,0,0,.8); }
 .title-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
 .result-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
 .result-head h2 { font-family: var(--font); text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 22px; margin: 0; }
-.profile-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
-.profile-photos img { width: 100%; height: 160px; object-fit: cover; border-radius: var(--radius-sm); display: block; }
+.profile-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.profile-photos .photo { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.profile-photos img { width: 100%; aspect-ratio: 3 / 2; height: auto; object-fit: cover; border-radius: var(--radius-sm); display: block; }
+.profile-photos figcaption { color: var(--text-soft); font-size: 15px; line-height: 1.4; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
 .kv dt { color: var(--muted); font-weight: 600; }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
@@ -396,9 +398,19 @@ dialog.flyer-dialog::backdrop { background: rgba(0,0,0,.8); }
 .city-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 4px 2px 12px; font-weight: 600; }
 .city-chip button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 20px; line-height: 1; min-width: 36px; min-height: 36px; cursor: pointer; border-radius: 999px; }
 .city-chip button:hover { color: var(--text); background: #333; }
-.contact-row { border-top: 1px solid var(--line); padding: 14px 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
+/* Each contact: Name | Role, then Email | Phone | Ext., then the actions. */
+.contact-row { border-top: 1px solid var(--line); padding: 16px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.contact-row .c-name, .contact-row .c-role { grid-column: span 6; }
+.contact-row .c-email { grid-column: span 5; }
+.contact-row .c-phone { grid-column: span 4; }
+.contact-row .c-ext { grid-column: span 3; }
+.contact-row .c-actions { grid-column: 1 / -1; justify-content: space-between; }
 .contact-row .field { margin: 0; }
-@media (max-width: 760px) { .contact-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .contact-row .c-name, .contact-row .c-role, .contact-row .c-email { grid-column: 1 / -1; }
+  .contact-row .c-phone { grid-column: span 8; }
+  .contact-row .c-ext { grid-column: span 4; }
+}
 .photo-grid-edit { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
 .photo-tile { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; display: flex; flex-direction: column; }
 .photo-tile img { width: 100%; height: 120px; object-fit: cover; display: block; }
@@ -415,3 +427,17 @@ dialog.flyer-dialog::backdrop { background: rgba(0,0,0,.8); }
 .switch input:checked::after { left: 25px; }
 .save-bar { position: sticky; bottom: 0; background: rgba(24,25,26,.94); border-top: 1px solid var(--line); padding: 12px 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; align-items: center; z-index: 5; }
 .preview-box { border: 2px dashed var(--line-strong); border-radius: var(--radius); padding: 20px; }
+/* Inline field errors (portal formatting rules). */
+/* Phone extension box under the portal phone field. */
+.ext-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.ext-row label { font-weight: 600; font-size: 15px; }
+.input.ext { width: 110px; flex: none; }
+.field-err { color: var(--danger-text); font-size: 15px; font-weight: 600; margin-top: 6px; }
+.input[aria-invalid="true"] { border-color: var(--danger-text); }
+.portal-nav .nav-btn { font: inherit; text-align: left; color: var(--text); background: none; border: 0; font-weight: 600; padding: 12px 16px; border-radius: var(--radius-sm); min-height: 44px; cursor: pointer; }
+.portal-nav .nav-btn:hover { background: var(--card); }
+@media (max-width: 880px) { .portal-nav .nav-btn { padding: 8px 12px; } }
+/* "Preview public profile" pop-up (reuses the flyer dialog chrome). */
+dialog.preview-dialog { width: min(96vw, 980px); }
+.preview-dialog .pp-body { padding: 20px 24px 28px; }
+.preview-dialog .pp-h { font-family: var(--font); text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 20px; margin: 0; color: var(--link); }

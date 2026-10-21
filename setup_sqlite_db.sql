@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     state               TEXT DEFAULT 'TX',
     zip                 TEXT,
     phone               TEXT,
+    phone_ext           TEXT,             -- optional extension, digits only
     public_email        TEXT,
     website_url         TEXT,
     facebook_url        TEXT,
@@ -171,6 +172,7 @@ CREATE TABLE IF NOT EXISTS org_contacts (
     role       TEXT,
     email      TEXT,
     phone      TEXT,
+    phone_ext  TEXT,
     is_public  INTEGER NOT NULL DEFAULT 0,
     sort       INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE

@@ -243,7 +243,9 @@ function initMysql(cfg) {
 // SCHEMA_V2_TABLES below — its DDL is read from the setup files. Column e.g.
 //   ['events', 'image_url', 'TEXT'],
 const COLUMN_MIGRATIONS = [
-  // (none yet — the schema is at its first version)
+  // Optional phone extensions (2026-10): digits only, shown as "ext. 123".
+  ['organizations', 'phone_ext', 'VARCHAR(10)'],
+  ['org_contacts', 'phone_ext', 'VARCHAR(10)']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is
