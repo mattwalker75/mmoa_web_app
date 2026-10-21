@@ -388,9 +388,11 @@ dialog.flyer-dialog::backdrop { background: rgba(0,0,0,.8); }
 .vis-btn[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .sec-vis { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .cat-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-.cat-checks label { display: flex; gap: 10px; align-items: center; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 10px 12px; font-weight: 600; min-height: 48px; cursor: pointer; }
-.cat-checks label.on { border-color: var(--primary); background: var(--band-bg); }
-.cat-checks input { width: 20px; height: 20px; accent-color: var(--primary); }
+/* Toggle tiles (no checkboxes) — same look as the Need Help category tiles:
+   selected = solid green with dark text. */
+.svc-tile { font: inherit; font-weight: 600; text-align: left; min-height: 48px; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid var(--line-strong); }
+.svc-tile:hover { border-color: var(--outline); }
+.svc-tile[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 700; }
 .city-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 4px 2px 12px; font-weight: 600; }
 .city-chip button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 20px; line-height: 1; min-width: 36px; min-height: 36px; cursor: pointer; border-radius: 999px; }
 .city-chip button:hover { color: var(--text); background: #333; }

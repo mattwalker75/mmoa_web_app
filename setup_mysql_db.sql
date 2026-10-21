@@ -321,7 +321,8 @@ INSERT IGNORE INTO categories (slug, name, sort) VALUES
     ('veterans', 'Veterans', 14),
     ('disabilities', 'Disability services', 15),
     ('legal', 'Legal help', 16),
-    ('safety', 'Domestic violence & safety', 17);
+    ('safety', 'Domestic violence & safety', 17),
+    ('other', 'Other', 99);
 
 INSERT IGNORE INTO cities (name, sort) VALUES
     ('Anna', 1), ('Melissa', 2), ('Van Alstyne', 3), ('Howe', 4), ('Weston', 5),

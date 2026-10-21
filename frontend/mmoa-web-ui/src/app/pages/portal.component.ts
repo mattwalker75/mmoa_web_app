@@ -146,16 +146,11 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('categories')" (click)="flip('categories')" [attr.aria-label]="'Services: ' + (isPub('categories') ? 'public' : 'hidden')">{{ isPub('categories') ? 'Public' : 'Hidden' }}</button>
               </div>
               <p class="muted">Pick every category that fits — people search by these. (Hidden categories aren't used for search either.)</p>
-              <fieldset style="border:0;padding:0;margin:0">
-                <legend class="sr-only">Service categories</legend>
-                <div class="cat-checks">
-                  @for (c of data()!.options.categories; track c.slug) {
-                    <label [class.on]="cats().includes(c.slug)">
-                      <input type="checkbox" [checked]="cats().includes(c.slug)" (change)="toggleCat(c.slug)"> {{ c.name }}
-                    </label>
-                  }
-                </div>
-              </fieldset>
+              <div class="cat-checks" role="group" aria-label="Service categories">
+                @for (c of data()!.options.categories; track c.slug) {
+                  <button type="button" class="svc-tile" [attr.aria-pressed]="cats().includes(c.slug)" (click)="toggleCat(c.slug)">{{ c.name }}</button>
+                }
+              </div>
               <div class="sec-vis" style="margin-top:22px">
                 <h3 style="margin:0;font-size:22px">Cities we serve</h3>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('service_cities')" (click)="flip('service_cities')" [attr.aria-label]="'Cities served: ' + (isPub('service_cities') ? 'public' : 'hidden')">{{ isPub('service_cities') ? 'Public' : 'Hidden' }}</button>

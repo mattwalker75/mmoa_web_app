@@ -39,7 +39,7 @@ import { apiError, apiCode } from '../core/errors';
 
         @if (registrationOpen()) {
           <div class="auth-foot">
-            New partner nonprofit? <a routerLink="/signup">Create a free login</a>
+            New partner nonprofit? <a routerLink="/signup">Create a login</a>
           </div>
         }
       </div>
