@@ -16,7 +16,10 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => inject(AuthService).bootstrap()),
     provideRouter(
       routes,
-      withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' })
+      // Scrolling is handled in App (see handleScroll): the router's own
+      // 'enabled' mode jumps to the top on EVERY navigation, including the
+      // query-string updates the Need Help search makes while you type.
+      withInMemoryScrolling({ scrollPositionRestoration: 'disabled', anchorScrolling: 'disabled' })
     )
   ]
 };

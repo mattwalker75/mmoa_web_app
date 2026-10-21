@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
-import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { ViewportScroller } from '@angular/common';
+import { NavigationEnd, Router, RouterOutlet, Scroll } from '@angular/router';
 import { filter } from 'rxjs';
 import { SiteHeaderComponent } from './layout/site-header.component';
 import { SiteFooterComponent } from './layout/site-footer.component';
@@ -34,6 +35,8 @@ import { S } from './core/strings';
 export class App {
   private auth = inject(AuthService);
   private router = inject(Router);
+  private scroller = inject(ViewportScroller);
+  private lastPath = '';
   booted = this.auth.ready; // set by bootstrap(), which runs as an app initializer
   needHelp = signal(false);
   S = S;
@@ -43,6 +46,39 @@ export class App {
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       this.needHelp.set(this.router.url.startsWith('/need-help'));
     });
+    this.router.events.pipe(filter((e): e is Scroll => e instanceof Scroll)).subscribe(e => this.handleScroll(e));
+  }
+
+  /** After each navigation: Back/Forward returns to where you were, a #link
+   *  scrolls to its anchor, a new page starts at the top — and a change to
+   *  only the query string (?category=…&q=… on Need Help) leaves the page
+   *  where it is, so typing in a search box never jumps you away from it. */
+  private handleScroll(e: Scroll) {
+    const path = (e.routerEvent instanceof NavigationEnd ? e.routerEvent.urlAfterRedirects : this.router.url).split(/[?#]/)[0];
+    const samePage = path === this.lastPath;
+    this.lastPath = path;
+    if (e.position) this.restore(e.position);
+    else if (e.anchor) this.scroller.scrollToAnchor(e.anchor);
+    else if (!samePage) this.jump([0, 0]);
+  }
+
+  /** Instant, not the site's smooth scrolling: a page change shouldn't glide. */
+  private jump([left, top]: [number, number]) { window.scrollTo({ left, top, behavior: 'instant' }); }
+
+  /** Back/Forward: pages load their lists a moment after they appear, so the
+   *  page may still be too short to reach the old spot — keep trying for up
+   *  to ~1.5s, and stop as soon as the visitor scrolls or types themselves. */
+  private restore(pos: [number, number]) {
+    let tries = 0, stopped = false;
+    const stop = () => { stopped = true; };
+    const opts = { once: true, passive: true } as const;
+    ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stop, opts));
+    const attempt = () => {
+      if (stopped) return;
+      this.jump(pos);
+      if (Math.abs(window.scrollY - pos[1]) > 2 && ++tries < 15) setTimeout(attempt, 100);
+    };
+    attempt();
   }
 
   /** In-page skip link without touching the router's URL. */
