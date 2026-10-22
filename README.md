@@ -15,13 +15,21 @@ shares the links):
   and Open Graph tags so Facebook previews show the flyer.
 - **Raffles** — prize photos, ticket info, claim rules; tickets are sold in
   person only; the winning ticket is posted after the drawing.
+- **Home** — hero, the next 3 events, the current raffle, and a sliding strip
+  of the partner nonprofits (left → right, pausable).
 - **About** (story, values, board, impact) and **Partner With Us**.
-- **"Need Help?"** — anyone can search verified local nonprofits by need, city
-  and keyword (no account, nothing saved), with 911 / 988 / 211 always shown.
+- **"Need Help?"** — anyone can search verified local nonprofits by one or
+  more needs, a city and a keyword that filters as you type (no account,
+  nothing saved), with 911 / 988 / 211 always shown.
 - **Nonprofit portal** — logins exist only for other nonprofits. They sign up
   with their EIN, verify their email, and maintain their directory profile
-  (services, cities, what to bring, contacts, up to 5 photos, per-field
-  Public/Hidden). MMoA verifies them in the admin console before they appear.
+  (services, cities, what to bring, contacts with optional phone extensions,
+  up to 5 captioned photos, private search keywords, per-field
+  Public/Hidden). Fields are formatted and checked as they type (EIN, state,
+  phone, email, links), and **Preview Public Profile** shows exactly what the
+  public sees. MMoA verifies them in the admin console before they appear.
+- **Donate** — an optional header button that opens a donation payment link,
+  switched on and off from the admin console.
 
 It's an **Express JSON API** with an **Angular single-page app** front end
 (`frontend/mmoa-web-ui/`), ported from the car-show control plane. All

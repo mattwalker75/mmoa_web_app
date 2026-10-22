@@ -13,7 +13,8 @@ helpers/
   email.js                     # outbound email (console/SMTP/SES)
   maintenance.js               # maintenance-mode middleware (reads maintenance.json)
   markdownLite.js              # safe markdown-lite renderer (console keeps a verbatim copy)
-  orgs.js                      # directory profile loading + public/private shaping
+  orgs.js                      # directory profile loading + public/private shaping + search text
+  formats.js                   # profile field normalizers/validators (SPA mirror: core/formats.ts)
   uploads.js                   # uploads/ image store (magic bytes, random names)
   sqlTime.js                   # UTC timestamp helpers
   tokens.js                    # random tokens
@@ -37,6 +38,40 @@ START_APP.sh STOP_APP.sh RESTART_APP.sh SETUP_SQLLITE_DB.sh SETUP_MYSQL_DB.sh
 frontend/mmoa-web-ui/          # Angular SPA (the entire UI)
 Docs/                          # this documentation
 ```
+
+### Front end (`frontend/mmoa-web-ui/src/app/`)
+
+```
+app.ts / app.config.ts         # root shell + router; app.ts also owns scrolling (below)
+core/
+  api.service.ts models.ts     # typed API client + shapes
+  strings.ts                   # user-facing text in one place (ready for a Spanish copy)
+  formats.ts                   # as-you-type formatting/validation; mirrors helpers/formats.js
+  site.service.ts              # /api/site: phone, EIN, Facebook, donation link, website sections
+layout/                        # site header (incl. optional Donate button) + footer
+pages/                         # one component per route (home, events, need-help, portal, …)
+shared/
+  org-card.component.ts        # a nonprofit as a "Need Help?" search result
+  org-view.component.ts        # a nonprofit's full public profile
+  profile-preview-dialog…      # portal "Preview Public Profile" popup (uses the two above)
+  nonprofit-carousel…          # Home's left → right partner strip
+```
+
+Rules worth knowing:
+
+- **Keep `core/formats.ts` and `helpers/formats.js` in step.** The SPA formats
+  while typing; the server has the final say on save.
+- **Typed inputs that reformat** (EIN, phones, extensions) use `maskInput()`,
+  which writes the cleaned value back into the element — when formatting
+  leaves the model unchanged (a letter typed into a phone), Angular wouldn't
+  repaint the box otherwise.
+- **Scrolling** is handled in `app.ts`, not by the router
+  (`scrollPositionRestoration` is off): a new page starts at the top, a
+  query-string-only change (Need Help's `?category=&city=&q=` while typing)
+  leaves the page where it is, and Back/Forward restores the old position,
+  retrying briefly while the page's list loads.
+- **Moving content** (the Home strip) pauses on hover / focus, has a Pause
+  button, and stays still under `prefers-reduced-motion`.
 
 ## Lifecycle scripts
 

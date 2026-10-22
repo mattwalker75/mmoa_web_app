@@ -60,9 +60,12 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
 - **`organizations`** — 1:1 with `users` (`user_id` UNIQUE, CASCADE). `name`,
   `ein` (`'XX-XXXXXXX'`, never public, editable by the org only while
   unverified), `address_line1/2`, `city`, `state` (default `TX`), `zip`,
-  `phone`, `public_email`, `website_url`, `facebook_url`, `instagram_url`,
+  `phone` (`(123) 456-7890`), `phone_ext` (1–6 digits, optional),
+  `public_email`, `website_url`, `facebook_url`, `instagram_url`,
   `other_social_url`, `description_md` (markdown-lite), `hours`,
-  `what_to_bring` (newline list), `public_fields` (JSON array of the keys shown
+  `what_to_bring` (newline list), `search_tags` (comma-separated private
+  search keywords — **never public**, only matched by the keyword search),
+  `public_fields` (JSON array of the keys shown
   publicly — `address, phone, public_email, website_url, facebook_url,
   instagram_url, other_social_url, description, hours, what_to_bring, contacts,
   images, service_cities, categories`; default all), `is_listed` (0 = org hid
@@ -70,13 +73,18 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   CHECK), `verified_at`, `verified_by` (console admin), `verification_note`
   (console-only; not shown to the org), `created_at`, `updated_at`.
   **Public = `verified` AND `is_listed = 1`, and then only `public_fields`.**
-  Hidden categories / cities / text are also not used to match searches.
+  Hidden categories / cities / text are also not used to match searches
+  (`search_tags` is the one private field searches use — that's its purpose).
 - **`org_contacts`** — `contact_id`, `org_id` (CASCADE), `name`, `role`,
-  `email`, `phone`, `is_public` (0/1), `sort`.
-- **`org_images`** — `image_id`, `org_id` (CASCADE), `path` (`orgs/…`), `alt`,
-  `sort`. Max 5 per org (enforced by the API).
+  `email`, `phone`, `phone_ext`, `is_public` (0/1), `sort`.
+- **`org_images`** — `image_id`, `org_id` (CASCADE), `path` (`orgs/…`), `alt`
+  (also shown as the photo's caption on the public profile), `sort`. Max 5
+  per org (enforced by the API).
 - **`categories`** — `category_id`, `slug` (UNIQUE), `name`, `sort`,
-  `is_active`. 17 seeded (food … safety).
+  `is_active`. 18 seeded (food … safety, then **Other**, sort 99). `other` is
+  *built in*: the app re-adds it on every boot and reads its slug ("other
+  needs" in the search summary), so the console locks its slug and won't
+  delete it.
 - **`org_categories`** — (`org_id`, `category_id`) PK, both CASCADE.
 - **`cities`** — `city_id`, `name` (UNIQUE), `sort`, `is_active`. 10 seeded
   (Anna, Melissa, Van Alstyne, Howe, Weston, Westminster, Blue Ridge,
@@ -142,7 +150,11 @@ remove files).
    `title/description/location`, no `slug`) is **dropped** and recreated —
    it only ever held the placeholder seed events.
 2. `TABLE_MIGRATIONS` (indexes, `CREATE … IF NOT EXISTS`, one list per engine).
-3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored).
+3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored)
+   — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
+   `organizations.search_tags`.
+4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
+   missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category.
 
 When you add a column: add it to **both** `setup_*.sql` files **and**
 `COLUMN_MIGRATIONS`. A new table: add it to both files and append its name to
