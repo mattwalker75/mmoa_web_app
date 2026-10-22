@@ -282,6 +282,8 @@ CREATE TABLE IF NOT EXISTS raffles (
     status               VARCHAR(16) NOT NULL DEFAULT 'draft',
     winning_ticket       VARCHAR(60) NULL,
     is_published         TINYINT(1) NOT NULL DEFAULT 0,
+    preview_token        VARCHAR(64) NULL,
+    preview_expires_at   TIMESTAMP NULL,
     created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP NULL,
     CONSTRAINT chk_raffle_status CHECK (status IN ('draft','open','closed','drawn')),

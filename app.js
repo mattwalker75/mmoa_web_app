@@ -282,7 +282,8 @@ if (spaBuilt) {
   });
   app.get('/raffles/:slug', async (req, res, next) => {
     try {
-      const r = await publicApi.findPublishedRaffle(req.params.slug);
+      const r = await publicApi.findPublishedRaffle(req.params.slug, req.query.preview);
+      if (r && r.preview) return sendPreview(res);
       sendWithMeta(res, r && {
         title: r.title,
         description: [r.ticket_price_text, r.drawing_at ? 'Drawing ' + new Date(r.drawing_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric', year: 'numeric' }) : '']

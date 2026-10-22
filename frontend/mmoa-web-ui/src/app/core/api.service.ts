@@ -31,8 +31,10 @@ export class ApiService {
   raffles(status: 'current' | 'past' = 'current'): Observable<{ status: string; raffles: Raffle[] }> {
     return this.http.get<{ status: string; raffles: Raffle[] }>('/api/raffles', { ...this.opts, params: { status } });
   }
-  raffle(slug: string): Observable<{ raffle: Raffle }> {
-    return this.http.get<{ raffle: Raffle }>('/api/raffles/' + encodeURIComponent(slug), this.opts);
+  /** `preview` = a console preview token (shows a draft / hidden raffle). */
+  raffle(slug: string, preview?: string | null): Observable<{ raffle: Raffle }> {
+    const q = preview ? '?preview=' + encodeURIComponent(preview) : '';
+    return this.http.get<{ raffle: Raffle }>('/api/raffles/' + encodeURIComponent(slug) + q, this.opts);
   }
   board(): Observable<{ board: BoardMember[] }> { return this.http.get<{ board: BoardMember[] }>('/api/board', this.opts); }
 

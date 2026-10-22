@@ -17,6 +17,16 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
   imports: [RouterLink, FlyerDialogComponent, ShareButtonsComponent],
   template: `
     <div class="page">
+      @if (r()?.preview) {
+        <div class="preview-banner" role="status">
+          <strong>Preview</strong>
+          @switch (r()!.preview_state) {
+            @case ('live') { — this raffle is published and live on the website. }
+            @case ('hidden') { — this raffle is <b>hidden</b>: it is not on the website. }
+            @default { — this raffle is a <b>draft</b>: it is not on the website yet. }
+          }
+        </div>
+      }
       <a class="back-link" routerLink="/raffles">← All raffles</a>
       @if (state() === 'loading') {
         <div class="loading"><span class="spinner light big" role="status" aria-label="Loading raffle"></span></div>
@@ -123,7 +133,7 @@ export class RaffleDetailComponent {
     this.state.set('loading');
     this.sel.set(0);
     try {
-      const res = await firstValueFrom(this.api.raffle(slug));
+      const res = await firstValueFrom(this.api.raffle(slug, this.route.snapshot.queryParamMap.get('preview')));
       this.r.set(res.raffle);
       this.title.setTitle(`${res.raffle.title} · Mission Men of Anna`);
       this.state.set('ok');
@@ -135,6 +145,8 @@ export class RaffleDetailComponent {
   drawSub(r: Raffle) { return [time(r.drawing_at), r.drawing_location].filter(Boolean).join(' · '); }
 
   statusLabel(r: Raffle) {
-    return r.status === 'open' ? 'Tickets on sale' : r.status === 'closed' ? 'Ticket sales closed' : 'Drawing held';
+    // 'draft' only reaches the page in a console preview.
+    return r.status === 'open' ? 'Tickets on sale' : r.status === 'closed' ? 'Ticket sales closed'
+      : r.status === 'drawn' ? 'Drawing held' : 'Draft — not on sale yet';
   }
 }

@@ -16,6 +16,7 @@
 //   events   — status = 'published' only (a valid console preview token
 //              also shows a draft / archived one, marked preview).
 //   raffles  — is_published = 1 AND status <> 'draft'; winning_ticket only once drawn.
+//              (A valid console preview token also shows a draft / hidden one.)
 //   orgs     — verification_status = 'verified' AND is_listed = 1 only, and
 //              then only the fields in public_fields (helpers/orgs.js). The
 //              EIN is never sent. Everything else is a 404 — indistinguishable
@@ -253,17 +254,26 @@ module.exports = function (db, appConfig) {
     }
   });
 
-  async function findPublishedRaffle(slug) {
+  /** The public raffle for a slug, or null. With a valid console preview
+   *  token it's returned even as a draft / hidden, flagged `preview` with
+   *  `preview_state` (draft | hidden | live) for the page's banner. */
+  async function findPublishedRaffle(slug, previewToken) {
     if (!SLUG_RE.test(slug || '') || slug.length > 120) return null;
-    const r = await db.getAsync("SELECT * FROM raffles WHERE slug = ? AND is_published = 1 AND status <> 'draft'", [slug]);
+    const r = await db.getAsync('SELECT * FROM raffles WHERE slug = ?', [slug]);
     if (!r) return null;
-    return (await publicRaffles([r], true))[0];
+    const live = Number(r.is_published) === 1 && r.status !== 'draft';
+    const preview = validPreview(r, previewToken);
+    if (!live && !preview) return null;
+    const out = (await publicRaffles([r], true))[0];
+    if (preview) { out.preview = true; out.preview_state = r.status === 'draft' ? 'draft' : live ? 'live' : 'hidden'; }
+    return out;
   }
 
   router.get('/raffles/:slug', async (req, res) => {
     try {
-      const raffle = await findPublishedRaffle(req.params.slug);
+      const raffle = await findPublishedRaffle(req.params.slug, req.query.preview);
       if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
+      if (raffle.preview) res.set('Cache-Control', 'no-store');
       res.json({ raffle });
     } catch (err) {
       console.error('[api] raffle detail failed:', err);

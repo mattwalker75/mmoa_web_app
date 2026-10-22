@@ -320,6 +320,8 @@ CREATE TABLE IF NOT EXISTS raffles (
     status               TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','open','closed','drawn')),
     winning_ticket       TEXT,
     is_published         INTEGER NOT NULL DEFAULT 0,
+    preview_token        TEXT,        -- console Preview link (/raffles/<slug>?preview=…), ~30 min
+    preview_expires_at   TIMESTAMP,
     created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP,
     FOREIGN KEY (beneficiary_org_id) REFERENCES organizations (org_id) ON DELETE SET NULL

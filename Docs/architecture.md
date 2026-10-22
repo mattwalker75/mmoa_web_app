@@ -71,7 +71,7 @@ subdomains) removed.
 | GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. `status = 'published'` only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
 | GET | `/api/events/:slug` | `:slug` = `latest` → the event marked `is_latest` (same rules; 404 unless it's published). `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 unless published — or `?preview=<token>` with the console's unexpired preview token, which returns any status plus `preview: true, status` (sent `no-store`) |
 | GET | `/api/raffles?status=current\|past` | `{ status, raffles: [Raffle] }`. current = open/closed, past = drawn; published only; ≤50 |
-| GET | `/api/raffles/:slug` | `{ raffle }` + `prize_html`, `images: [{url, alt}]`, `how_to_buy`, `claim_requirements: []`, `claim_preset`. `winning_ticket` only when drawn. 404 for drafts/unpublished |
+| GET | `/api/raffles/:slug` | `?preview=<token>` (the console's unexpired preview token) also returns a draft / hidden raffle, plus `preview: true, preview_state: draft\|hidden\|live` (sent `no-store`). `{ raffle }` + `prize_html`, `images: [{url, alt}]`, `how_to_buy`, `claim_requirements: []`, `claim_preset`. `winning_ticket` only when drawn. 404 for drafts/unpublished |
 | GET | `/api/board` | `{ board: [{board_id, role_title, role_description, person_name, photo_url}] }` |
 | GET | `/api/directory/meta` | `{ categories: [{category_id, slug, name}], cities: [{city_id, name}] }` (active only) |
 | GET | `/api/directory/search?category=<slug>[,<slug>…]&city=<name\|any>&q=<text>` | `{ categories: [{slug, name}], category (first pick, legacy), city, q, count, results: [PublicOrg] }` — verified + listed only, public fields only; several categories = an org matching ANY of them (comma-separated or repeated `category`); 400 for an unknown category/city. See [Need Help search](#need-help-search) |
@@ -132,7 +132,7 @@ Open Graph: `GET /events/<slug>` and `/raffles/<slug>` (page loads, not
 and `twitter:card` injected (absolute URLs from `publicBaseUrl`; flyer → cover
 → first photo → `carshow.jpg`), so Facebook previews show the event. Unknown
 or unpublished slugs get the plain index with status 404. With a valid
-`?preview=<token>`, `/events/<slug>` instead returns the plain index with
+`?preview=<token>`, `/events/<slug>` (and `/raffles/<slug>`) instead returns the plain index with
 `frame-ancestors *`, no `X-Frame-Options`, `no-store` and `X-Robots-Tag:
 noindex` — the console shows that page in a framed pop-up on its own origin.
 Only that response is frameable; it's read-only and needs a fresh token

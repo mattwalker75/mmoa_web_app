@@ -160,7 +160,8 @@ remove files).
 3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored)
    — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
    `organizations.search_tags`, `events.status`, `events.preview_token`,
-   `events.preview_expires_at`, `events.is_latest`.
+   `events.preview_expires_at`, `events.is_latest`, `raffles.preview_token`,
+   `raffles.preview_expires_at`.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
    missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
    plus the `events.status` backfill above (an idempotent `UPDATE`).

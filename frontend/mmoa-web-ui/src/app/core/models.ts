@@ -76,7 +76,7 @@ export interface EventItem {
   status?: 'draft' | 'published' | 'archived';
 }
 
-export type RaffleStatus = 'open' | 'closed' | 'drawn';
+export type RaffleStatus = 'open' | 'closed' | 'drawn' | 'draft'; // draft: console preview only
 
 export interface Raffle {
   raffle_id: number;
@@ -98,6 +98,9 @@ export interface Raffle {
   how_to_buy?: string;
   claim_requirements?: string[];
   claim_preset?: string | null;
+  /** Only on an admin preview (console preview link). */
+  preview?: boolean;
+  preview_state?: 'draft' | 'hidden' | 'live';
 }
 
 export interface BoardMember {
