@@ -293,6 +293,18 @@ CREATE TABLE IF NOT EXISTS raffles (
     INDEX idx_raffles_status (status, is_published)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS raffle_beneficiaries (
+    beneficiary_id INT AUTO_INCREMENT PRIMARY KEY,
+    raffle_id      INT NOT NULL,
+    org_id         INT NULL,
+    name           VARCHAR(200) NULL,
+    url            VARCHAR(1000) NULL,
+    sort           INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (raffle_id) REFERENCES raffles (raffle_id) ON DELETE CASCADE,
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE SET NULL,
+    INDEX idx_raffle_beneficiaries_raffle (raffle_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS raffle_images (
     image_id  INT AUTO_INCREMENT PRIMARY KEY,
     raffle_id INT NOT NULL,

@@ -90,6 +90,9 @@ export interface Raffle {
   drawing_at: string | null;
   drawing_location: string | null;
   beneficiary: { name: string; org_id?: number; profile_path?: string } | null;
+  /** Everyone the raffle benefits (like an event's) + an optional note. */
+  beneficiaries?: Beneficiary[];
+  beneficiaries_text?: string | null;
   /** Only once status = 'drawn'. */
   winning_ticket: string | null;
   // detail only

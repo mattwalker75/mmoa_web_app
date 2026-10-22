@@ -128,6 +128,11 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   "current" = open/closed, "past" = drawn; `winning_ticket` is only sent once
   drawn. The stage can be stepped in any visibility, so a draft can be
   previewed in each stage.
+- **`raffle_beneficiaries`** — like `event_beneficiaries`: `beneficiary_id`,
+  `raffle_id` (CASCADE), `org_id` (NULL, SET NULL), `name`, `url`, `sort`. An
+  org row links to its profile only while the org is public. The raffle's
+  `beneficiary_text` is the note shown with the list. (The old single
+  `raffles.beneficiary_org_id` is copied into a row on boot, then cleared.)
 - **`raffle_images`** — `image_id`, `raffle_id` (CASCADE), `path`
   (`raffles/…`), `alt`, `sort` (prize photos, up to 8 — console-enforced).
 - **`board_members`** — `board_id`, `role_title`, `role_description`,

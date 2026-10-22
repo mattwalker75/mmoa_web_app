@@ -68,14 +68,17 @@ module.exports = function (db, appConfig) {
     return { upcoming, past: past.slice(0, PAST_EVENTS_LIMIT) };
   }
 
-  async function beneficiariesFor(eventIds) {
-    if (!eventIds.length) return new Map();
+  // Beneficiary rows for events (event_beneficiaries) or raffles
+  // (raffle_beneficiaries) → Map(id → [{name, url, org_id?, profile_path?}]).
+  async function beneficiariesFor(ids, kind = 'event') {
+    if (!ids.length) return new Map();
+    const t = kind === 'raffle' ? { table: 'raffle_beneficiaries', id: 'raffle_id' } : { table: 'event_beneficiaries', id: 'event_id' };
     const rows = await db.allAsync(
-      `SELECT b.event_id, b.org_id, b.name, b.url, b.sort, o.name AS org_name,
+      `SELECT b.${t.id} AS item_id, b.org_id, b.name, b.url, b.sort, o.name AS org_name,
               o.verification_status, o.is_listed
-         FROM event_beneficiaries b LEFT JOIN organizations o ON o.org_id = b.org_id
-        WHERE b.event_id IN (${eventIds.map(() => '?').join(',')})
-        ORDER BY b.sort, b.beneficiary_id`, eventIds);
+         FROM ${t.table} b LEFT JOIN organizations o ON o.org_id = b.org_id
+        WHERE b.${t.id} IN (${ids.map(() => '?').join(',')})
+        ORDER BY b.sort, b.beneficiary_id`, ids);
     const m = new Map();
     for (const r of rows) {
       // Link to the directory profile only while that org is public; never
@@ -85,8 +88,8 @@ module.exports = function (db, appConfig) {
       if (!name) continue;
       const item = { name, url: safeHttpUrl(r.url) };
       if (orgPublic) { item.org_id = r.org_id; item.profile_path = `/need-help/org/${r.org_id}`; }
-      if (!m.has(r.event_id)) m.set(r.event_id, []);
-      m.get(r.event_id).push(item);
+      if (!m.has(r.item_id)) m.set(r.item_id, []);
+      m.get(r.item_id).push(item);
     }
     return m;
   }
@@ -195,16 +198,13 @@ module.exports = function (db, appConfig) {
 
   async function publicRaffles(rows, detail) {
     const imgs = await raffleImages(rows.map(r => r.raffle_id));
-    const orgIds = [...new Set(rows.map(r => r.beneficiary_org_id).filter(Boolean))];
-    const orgRows = orgIds.length
-      ? await db.allAsync(`SELECT org_id, name, verification_status, is_listed FROM organizations WHERE org_id IN (${orgIds.map(() => '?').join(',')})`, orgIds)
-      : [];
-    const orgMap = new Map(orgRows.map(o => [o.org_id, o]));
+    const bens = await beneficiariesFor(rows.map(r => r.raffle_id), 'raffle');
     return rows.map(r => {
       const images = imgs.get(r.raffle_id) || [];
-      const org = r.beneficiary_org_id ? orgMap.get(r.beneficiary_org_id) : null;
-      const orgPublic = org && orgsHelper.isPublic(org);
-      const benName = r.beneficiary_text || (orgPublic ? org.name : null);
+      const list = bens.get(r.raffle_id) || [];
+      // `beneficiary` (one name) is kept for older callers: the note, else the first org.
+      const first = list[0];
+      const benName = r.beneficiary_text || (first ? first.name : null);
       const out = {
         raffle_id: r.raffle_id,
         slug: r.slug,
@@ -216,7 +216,9 @@ module.exports = function (db, appConfig) {
         ticket_price_text: r.ticket_price_text || null,
         drawing_at: isoOrNull(r.drawing_at),
         drawing_location: r.drawing_location || null,
-        beneficiary: benName ? { name: benName, ...(orgPublic ? { org_id: org.org_id, profile_path: `/need-help/org/${org.org_id}` } : {}) } : null,
+        beneficiary: benName ? { name: benName, ...(!r.beneficiary_text && first && first.profile_path ? { org_id: first.org_id, profile_path: first.profile_path } : {}) } : null,
+        beneficiaries: list,
+        beneficiaries_text: r.beneficiary_text || null,
         winning_ticket: r.status === 'drawn' ? (r.winning_ticket || null) : null
       };
       if (detail) {

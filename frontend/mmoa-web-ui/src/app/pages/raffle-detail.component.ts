@@ -92,12 +92,26 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
               </section>
             }
 
-            @if (r.beneficiary; as b) {
-              <div class="muted">Proceeds benefit
-                @if (b.profile_path) { <a [routerLink]="b.profile_path">{{ b.name }}</a> } @else { <strong class="soft">{{ b.name }}</strong> }.
-                @if (r.status !== 'drawn') { After the drawing, this page shows the winning ticket number. }
-              </div>
+            @if (r.beneficiaries?.length || r.beneficiaries_text) {
+              <section>
+                <h2>Where the money goes</h2>
+                @if (r.beneficiaries_text) { <p class="prose">{{ r.beneficiaries_text }}</p> }
+                @if (r.beneficiaries?.length) {
+                  <div class="ben-grid">
+                    @for (b of r.beneficiaries; track $index) {
+                      @if (b.profile_path) {
+                        <a class="ben" [routerLink]="b.profile_path">{{ b.name }}</a>
+                      } @else if (b.url) {
+                        <a class="ben" [href]="b.url" target="_blank" rel="noopener noreferrer">{{ b.name }}<div class="s">Visit website</div></a>
+                      } @else {
+                        <div class="ben">{{ b.name }}</div>
+                      }
+                    }
+                  </div>
+                }
+              </section>
             }
+            @if (r.status !== 'drawn') { <p class="muted" style="margin:0">After the drawing, this page shows the winning ticket number.</p> }
 
             <app-share-buttons label="Share this raffle:" />
           </div>

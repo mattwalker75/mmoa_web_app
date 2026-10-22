@@ -288,7 +288,7 @@ const TABLE_MIGRATIONS = [
 const SCHEMA_V2_TABLES = [
   'organizations', 'org_contacts', 'org_images', 'categories', 'org_categories',
   'cities', 'org_cities', 'events', 'event_beneficiaries', 'raffles',
-  'raffle_images', 'board_members'
+  'raffle_images', 'board_members', 'raffle_beneficiaries'
 ];
 
 // Split a setup_*.sql file into statements grouped by the table they act on:
@@ -399,7 +399,19 @@ const ROW_MIGRATIONS = [
   { table: 'raffles', sqlite: "UPDATE raffles SET visibility = 'published' WHERE is_published = 1 AND status <> 'draft' AND visibility = 'draft'",
     mysql: "UPDATE raffles SET visibility = 'published' WHERE is_published = 1 AND status <> 'draft' AND visibility = 'draft'" },
   { table: 'raffles', sqlite: "UPDATE raffles SET status = 'open', is_published = 0 WHERE status = 'draft'",
-    mysql: "UPDATE raffles SET status = 'open', is_published = 0 WHERE status = 'draft'" }
+    mysql: "UPDATE raffles SET status = 'open', is_published = 0 WHERE status = 'draft'" },
+  // Raffles can benefit several organizations now (raffle_beneficiaries, like
+  // events): move the old single beneficiary_org_id into a row, then clear it
+  // so this runs once per raffle (beneficiary_text stays — it's the note).
+  { table: 'raffle_beneficiaries',
+    sqlite: `INSERT INTO raffle_beneficiaries (raffle_id, org_id, name, sort)
+             SELECT r.raffle_id, r.beneficiary_org_id, o.name, 1 FROM raffles r LEFT JOIN organizations o ON o.org_id = r.beneficiary_org_id
+              WHERE r.beneficiary_org_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM raffle_beneficiaries b WHERE b.raffle_id = r.raffle_id)`,
+    mysql: `INSERT INTO raffle_beneficiaries (raffle_id, org_id, name, sort)
+             SELECT r.raffle_id, r.beneficiary_org_id, o.name, 1 FROM raffles r LEFT JOIN organizations o ON o.org_id = r.beneficiary_org_id
+              WHERE r.beneficiary_org_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM raffle_beneficiaries b WHERE b.raffle_id = r.raffle_id)` },
+  { table: 'raffles', sqlite: 'UPDATE raffles SET beneficiary_org_id = NULL WHERE beneficiary_org_id IS NOT NULL',
+    mysql: 'UPDATE raffles SET beneficiary_org_id = NULL WHERE beneficiary_org_id IS NOT NULL' }
 ];
 
 async function runRowMigrations(db) {

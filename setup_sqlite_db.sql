@@ -339,6 +339,22 @@ CREATE TABLE IF NOT EXISTS raffles (
 );
 CREATE INDEX IF NOT EXISTS idx_raffles_status ON raffles(status, is_published);
 
+-- Who a raffle benefits — like event_beneficiaries: org_id set → links to that
+-- org's directory profile (only while it's verified + listed); otherwise name
+-- (+ optional url). raffles.beneficiary_text is the free-text note shown with
+-- the list. (raffles.beneficiary_org_id is legacy: copied here on boot.)
+CREATE TABLE IF NOT EXISTS raffle_beneficiaries (
+    beneficiary_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    raffle_id      INTEGER NOT NULL,
+    org_id         INTEGER,
+    name           TEXT,
+    url            TEXT,
+    sort           INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (raffle_id) REFERENCES raffles (raffle_id) ON DELETE CASCADE,
+    FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_raffle_beneficiaries_raffle ON raffle_beneficiaries(raffle_id);
+
 -- Prize photos (up to 8 per raffle, enforced in the console).
 CREATE TABLE IF NOT EXISTS raffle_images (
     image_id  INTEGER PRIMARY KEY AUTOINCREMENT,
