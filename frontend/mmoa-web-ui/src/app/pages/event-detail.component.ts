@@ -16,6 +16,16 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
   imports: [RouterLink, FlyerDialogComponent, ShareButtonsComponent],
   template: `
     <div class="page">
+      @if (ev()?.preview) {
+        <div class="preview-banner" role="status">
+          <strong>Preview</strong>
+          @switch (ev()!.status) {
+            @case ('published') { — this event is published and live on the website. }
+            @case ('archived') { — this event is <b>archived</b>: it is not on the website. }
+            @default { — this event is a <b>draft</b>: it is not on the website yet. }
+          }
+        </div>
+      }
       <a class="back-link" routerLink="/events">← All events</a>
       @if (state() === 'loading') {
         <div class="loading"><span class="spinner light big" role="status" aria-label="Loading event"></span></div>
@@ -123,7 +133,7 @@ export class EventDetailComponent {
   private async load(slug: string) {
     this.state.set('loading');
     try {
-      const res = await firstValueFrom(this.api.event(slug));
+      const res = await firstValueFrom(this.api.event(slug, this.route.snapshot.queryParamMap.get('preview')));
       this.ev.set(res.event);
       this.title.setTitle(`${res.event.title} · Mission Men of Anna`);
       this.state.set('ok');

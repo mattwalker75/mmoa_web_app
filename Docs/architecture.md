@@ -68,8 +68,8 @@ subdomains) removed.
 | GET | `/health` | Liveness only (outside `/api`, before logging/sessions/maintenance). `{status:'ok', service:'web-app', uptime}` |
 | GET | `/api/public/config` | `appTitle`, `appSubtitle`, `orgName`, `allowMemberRegistration`, `passwordMinLength`, `showLinksInBrowser` |
 | GET | `/api/site` | `{ appTitle, orgName, phone, ein, facebookUrl, donationUrl, logoUrl, sections: {hero, about, help, partner, footer} }` (tokens applied) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
-| GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. Published only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
-| GET | `/api/events/:slug` | `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 if unpublished |
+| GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. `status = 'published'` only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
+| GET | `/api/events/:slug` | `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 unless published — or `?preview=<token>` with the console's unexpired preview token, which returns any status plus `preview: true, status` (sent `no-store`) |
 | GET | `/api/raffles?status=current\|past` | `{ status, raffles: [Raffle] }`. current = open/closed, past = drawn; published only; ≤50 |
 | GET | `/api/raffles/:slug` | `{ raffle }` + `prize_html`, `images: [{url, alt}]`, `how_to_buy`, `claim_requirements: []`, `claim_preset`. `winning_ticket` only when drawn. 404 for drafts/unpublished |
 | GET | `/api/board` | `{ board: [{board_id, role_title, role_description, person_name, photo_url}] }` |
@@ -131,7 +131,13 @@ Open Graph: `GET /events/<slug>` and `/raffles/<slug>` (page loads, not
 `/api`) return `index.html` with `<title>`, `og:title/description/url/image`
 and `twitter:card` injected (absolute URLs from `publicBaseUrl`; flyer → cover
 → first photo → `carshow.jpg`), so Facebook previews show the event. Unknown
-or unpublished slugs get the plain index with status 404.
+or unpublished slugs get the plain index with status 404. With a valid
+`?preview=<token>`, `/events/<slug>` instead returns the plain index with
+`frame-ancestors *`, no `X-Frame-Options`, `no-store` and `X-Robots-Tag:
+noindex` — the console shows that page in a framed pop-up on its own origin.
+Only that response is frameable; it's read-only and needs a fresh token
+(30 min, newest only) that only console admins get. The SPA shows a
+"Preview" banner on it.
 
 ## The no-admin-surface principle
 

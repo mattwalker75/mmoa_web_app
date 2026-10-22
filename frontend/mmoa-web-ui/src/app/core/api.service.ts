@@ -23,8 +23,10 @@ export class ApiService {
   events(when: 'upcoming' | 'past' = 'upcoming'): Observable<{ when: string; events: EventItem[] }> {
     return this.http.get<{ when: string; events: EventItem[] }>('/api/events', { ...this.opts, params: { when } });
   }
-  event(slug: string): Observable<{ event: EventItem }> {
-    return this.http.get<{ event: EventItem }>('/api/events/' + encodeURIComponent(slug), this.opts);
+  /** `preview` = a console preview token (shows a draft / archived event). */
+  event(slug: string, preview?: string | null): Observable<{ event: EventItem }> {
+    const q = preview ? '?preview=' + encodeURIComponent(preview) : '';
+    return this.http.get<{ event: EventItem }>('/api/events/' + encodeURIComponent(slug) + q, this.opts);
   }
   raffles(status: 'current' | 'past' = 'current'): Observable<{ status: string; raffles: Raffle[] }> {
     return this.http.get<{ status: string; raffles: Raffle[] }>('/api/raffles', { ...this.opts, params: { status } });

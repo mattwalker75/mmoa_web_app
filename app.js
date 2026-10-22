@@ -255,10 +255,23 @@ if (spaBuilt) {
     res.set('Cache-Control', 'no-cache').type('html').send(html);
   }
 
+  // An admin's preview link (?preview=<token> from the console, ~30 min):
+  // the console shows it in a framed pop-up on ITS origin, so only this
+  // response may be framed by another site. That's safe because the page is
+  // read-only and needs a fresh token only console admins get. Never indexed
+  // or cached.
+  function sendPreview(res) {
+    const csp = res.getHeader('Content-Security-Policy');
+    if (csp) res.setHeader('Content-Security-Policy', String(csp).replace(/frame-ancestors [^;]*/, 'frame-ancestors *'));
+    res.removeHeader('X-Frame-Options');
+    res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' }).type('html').send(readIndex());
+  }
+
   const defaultImage = '/content/images/carshow.jpg';
   app.get('/events/:slug', async (req, res, next) => {
     try {
-      const ev = await publicApi.findPublishedEvent(req.params.slug);
+      const ev = await publicApi.findPublishedEvent(req.params.slug, req.query.preview);
+      if (ev && ev.preview) return sendPreview(res);
       sendWithMeta(res, ev && {
         title: ev.title,
         description: ev.summary || ev.benefiting || '',

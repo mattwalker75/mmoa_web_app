@@ -71,6 +71,9 @@ export interface EventItem {
   map_url?: string | null;
   beneficiaries_text?: string | null;
   beneficiaries?: Beneficiary[];
+  /** Only on an admin preview (console preview link). */
+  preview?: boolean;
+  status?: 'draft' | 'published' | 'archived';
 }
 
 export type RaffleStatus = 'open' | 'closed' | 'drawn';

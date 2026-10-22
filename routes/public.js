@@ -13,7 +13,8 @@
 //   GET /api/directory/orgs/:id
 //
 // Visibility rules (the whole point of this file — keep them here):
-//   events   — is_published = 1 only.
+//   events   — status = 'published' only (a valid console preview token
+//              also shows a draft / archived one, marked preview).
 //   raffles  — is_published = 1 AND status <> 'draft'; winning_ticket only once drawn.
 //   orgs     — verification_status = 'verified' AND is_listed = 1 only, and
 //              then only the fields in public_fields (helpers/orgs.js). The
@@ -23,6 +24,7 @@
 'use strict';
 
 const express = require('express');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { parseSqlTimeMs, isoOrNull } = require('../helpers/sqlTime');
@@ -52,7 +54,7 @@ module.exports = function (db, appConfig) {
   // parseSqlTimeMs so ISO-typed values ('2027-05-01T14:00:00Z') and the
   // 'YYYY-MM-DD HH:MM:SS' form behave the same on both engines.
   async function loadPublishedEvents() {
-    const rows = await db.allAsync('SELECT * FROM events WHERE is_published = 1');
+    const rows = await db.allAsync("SELECT * FROM events WHERE status = 'published'");
     const now = Date.now();
     const upcoming = [], past = [];
     for (const r of rows) {
@@ -134,20 +136,35 @@ module.exports = function (db, appConfig) {
     }
   });
 
-  async function findPublishedEvent(slug) {
+  // A console preview token (events.preview_token, ~30 min) matches?
+  function validPreview(r, token) {
+    if (!token || typeof token !== 'string' || !r.preview_token) return false;
+    const a = Buffer.from(token), b = Buffer.from(String(r.preview_token));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+    return parseSqlTimeMs(r.preview_expires_at) > Date.now();
+  }
+
+  /** The public event for a slug, or null. With a valid preview token the
+   *  event is returned whatever its status, flagged `preview`. */
+  async function findPublishedEvent(slug, previewToken) {
     if (!SLUG_RE.test(slug || '') || slug.length > 120) return null;
-    const r = await db.getAsync('SELECT * FROM events WHERE slug = ? AND is_published = 1', [slug]);
+    const r = await db.getAsync('SELECT * FROM events WHERE slug = ?', [slug]);
     if (!r) return null;
+    const preview = validPreview(r, previewToken);
+    if (r.status !== 'published' && !preview) return null;
     const start = parseSqlTimeMs(r.starts_at);
     r._start = Number.isFinite(start) ? start : 0;
     const bens = await beneficiariesFor([r.event_id]);
-    return publicEvent(r, bens.get(r.event_id), true);
+    const ev = publicEvent(r, bens.get(r.event_id), true);
+    if (preview) { ev.preview = true; ev.status = r.status; }
+    return ev;
   }
 
   router.get('/events/:slug', async (req, res) => {
     try {
-      const ev = await findPublishedEvent(req.params.slug);
+      const ev = await findPublishedEvent(req.params.slug, req.query.preview);
       if (!ev) return res.status(404).json({ error: 'Event not found' });
+      if (ev.preview) res.set('Cache-Control', 'no-store');
       res.json({ event: ev });
     } catch (err) {
       console.error('[api] event detail failed:', err);

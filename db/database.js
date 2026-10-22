@@ -247,7 +247,13 @@ const COLUMN_MIGRATIONS = [
   ['organizations', 'phone_ext', 'VARCHAR(10)'],
   ['org_contacts', 'phone_ext', 'VARCHAR(10)'],
   // Private search keywords (2026-10): comma-separated, never shown publicly.
-  ['organizations', 'search_tags', 'TEXT']
+  ['organizations', 'search_tags', 'TEXT'],
+  // Event status (2026-10): draft | published | archived (replaces the
+  // is_published flag, which the console keeps in step as a mirror), and the
+  // console's short-lived preview link.
+  ['events', 'status', "VARCHAR(16) NOT NULL DEFAULT 'draft'"],
+  ['events', 'preview_token', 'VARCHAR(64)'],
+  ['events', 'preview_expires_at', 'TIMESTAMP NULL']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is
@@ -368,7 +374,13 @@ async function runTableMigrations(db) {
 // console — deleting it just means it comes back on the next boot.
 const ROW_MIGRATIONS = [
   { table: 'categories', sqlite: "INSERT OR IGNORE INTO categories (slug, name, sort) VALUES ('other', 'Other', 99)",
-    mysql: "INSERT IGNORE INTO categories (slug, name, sort) VALUES ('other', 'Other', 99)" }
+    mysql: "INSERT IGNORE INTO categories (slug, name, sort) VALUES ('other', 'Other', 99)" },
+  // Events published before the status column existed (or written since by
+  // something that only sets is_published) → status 'published'. The console
+  // clears is_published for drafts and archived events, so this never
+  // republishes one of those.
+  { table: 'events', sqlite: "UPDATE events SET status = 'published' WHERE is_published = 1 AND status = 'draft'",
+    mysql: "UPDATE events SET status = 'published' WHERE is_published = 1 AND status = 'draft'" }
 ];
 
 async function runRowMigrations(db) {

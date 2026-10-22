@@ -160,8 +160,8 @@ async function add(db) {
     if (await db.getAsync('SELECT event_id FROM events WHERE slug = ?', [e.slug])) { console.log(`= kept ${e.title}`); continue; }
     const ins = await db.runAsync(
       `INSERT INTO events (slug, title, summary, description_md, starts_at, ends_at, venue_name, address, city,
-         cover_path, flyer_path, registration_url, registration_label, registration_note, is_published, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+         cover_path, flyer_path, registration_url, registration_label, registration_note, is_published, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, ?)`,
       [e.slug, e.title, e.summary, e.description_md, e.starts_at, e.ends_at, e.venue_name, e.address || null, e.city,
         await copyImage('events', IMG(e.cover)), e.flyer ? await copyImage('events', IMG(e.flyer)) : null,
         e.registration_url, e.registration_label, e.registration_note, now, now]);

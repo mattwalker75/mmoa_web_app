@@ -98,8 +98,12 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   built from venue/address/city), `flyer_path`, `cover_path` (`events/…`),
   `registration_url` (any https URL, e.g. a Stripe Payment Link),
   `registration_label` (default `Register & pay`), `registration_note` (e.g.
-  `$25 entry`), `beneficiaries_text`, `is_published` (default 0),
-  `created_at`, `updated_at`. Public = published; "upcoming" = `starts_at` no
+  `$25 entry`), `beneficiaries_text`, `status` (`draft` | `published` |
+  `archived`, default `draft`), `is_published` (legacy mirror — 1 only while
+  published; the console keeps it in step, and a boot row migration turns
+  any `is_published = 1` draft into `published`), `preview_token` +
+  `preview_expires_at` (the console's 30-minute Preview link),
+  `created_at`, `updated_at`. Public = `status = 'published'`; "upcoming" = `starts_at` no
   more than 12 h ago (sorted soonest first); "past" = the rest, newest first,
   50 max.
 - **`event_beneficiaries`** — `beneficiary_id` (PK), `event_id` (CASCADE),
@@ -152,9 +156,11 @@ remove files).
 2. `TABLE_MIGRATIONS` (indexes, `CREATE … IF NOT EXISTS`, one list per engine).
 3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored)
    — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
-   `organizations.search_tags`.
+   `organizations.search_tags`, `events.status`, `events.preview_token`,
+   `events.preview_expires_at`.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
-   missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category.
+   missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
+   plus the `events.status` backfill above (an idempotent `UPDATE`).
 
 When you add a column: add it to **both** `setup_*.sql` files **and**
 `COLUMN_MIGRATIONS`. A new table: add it to both files and append its name to

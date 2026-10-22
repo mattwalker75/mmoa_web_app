@@ -234,7 +234,12 @@ CREATE TABLE IF NOT EXISTS org_cities (
 -- ----------------------------------------------------------------------------
 -- EVENTS
 -- ----------------------------------------------------------------------------
--- Only is_published = 1 rows are public (GET /api/events, /events/<slug>).
+-- status: 'draft' (being prepared) | 'published' (on the website) | 'archived'
+--   (taken down, kept for reference). Only 'published' rows are public (GET
+--   /api/events, /events/<slug>). is_published is a legacy mirror kept in step
+--   by the console (1 only while published).
+-- preview_token / preview_expires_at: a short-lived link the console makes so
+--   an admin can see the real page before publishing (/events/<slug>?preview=…).
 -- starts_at / ends_at are UTC 'YYYY-MM-DD HH:MM:SS'. "Upcoming" = starts_at
 -- no more than 12 hours ago. description_md uses the markdown-lite rules
 -- (helpers/markdownLite.js). map_url blank → the site builds a Google Maps
@@ -261,6 +266,9 @@ CREATE TABLE IF NOT EXISTS events (
     registration_note  TEXT,
     beneficiaries_text TEXT,
     is_published       INTEGER NOT NULL DEFAULT 0,
+    status             TEXT NOT NULL DEFAULT 'draft',  -- draft | published | archived
+    preview_token      TEXT,
+    preview_expires_at TIMESTAMP,
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMP
 );
