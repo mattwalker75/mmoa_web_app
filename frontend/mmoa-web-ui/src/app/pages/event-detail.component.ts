@@ -100,7 +100,7 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
                   <div class="ben-grid">
                     @for (b of e.beneficiaries; track $index) {
                       @if (b.profile_path) {
-                        <a class="ben" [routerLink]="b.profile_path">{{ b.name }}<div class="s">Verified nonprofit · view profile</div></a>
+                        <a class="ben" [routerLink]="b.profile_path">{{ b.name }}</a>
                       } @else if (b.url) {
                         <a class="ben" [href]="b.url" target="_blank" rel="noopener noreferrer">{{ b.name }}<div class="s">Visit website</div></a>
                       } @else {
