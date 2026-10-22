@@ -281,6 +281,7 @@ CREATE TABLE IF NOT EXISTS raffles (
     beneficiary_text     VARCHAR(500) NULL,
     status               VARCHAR(16) NOT NULL DEFAULT 'open',
     visibility           VARCHAR(16) NOT NULL DEFAULT 'draft',
+    is_latest            TINYINT(1) NOT NULL DEFAULT 0,
     winning_ticket       VARCHAR(60) NULL,
     is_published         TINYINT(1) NOT NULL DEFAULT 0,
     preview_token        VARCHAR(64) NULL,

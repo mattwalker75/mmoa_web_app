@@ -256,10 +256,13 @@ module.exports = function (db, appConfig) {
 
   /** The public raffle for a slug, or null. With a valid console preview
    *  token it's returned even as a draft / archived, flagged `preview` with
-   *  `preview_state` (draft | archived | live) for the page's banner. */
+   *  `preview_state` (draft | archived | live) for the page's banner. The
+   *  slug 'latest' (reserved) means the raffle marked is_latest. */
   async function findPublishedRaffle(slug, previewToken) {
     if (!SLUG_RE.test(slug || '') || slug.length > 120) return null;
-    const r = await db.getAsync('SELECT * FROM raffles WHERE slug = ?', [slug]);
+    const r = slug === 'latest'
+      ? await db.getAsync('SELECT * FROM raffles WHERE is_latest = 1 ORDER BY raffle_id DESC LIMIT 1', [])
+      : await db.getAsync('SELECT * FROM raffles WHERE slug = ?', [slug]);
     if (!r) return null;
     const live = r.visibility === 'published';
     const preview = validPreview(r, previewToken);

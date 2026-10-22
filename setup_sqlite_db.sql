@@ -304,6 +304,9 @@ CREATE INDEX IF NOT EXISTS idx_event_beneficiaries_event ON event_beneficiaries(
 --   be previewed in each stage. 'draft' is a legacy stage value (converted
 --   to visibility draft + stage open on boot). "Current" = open | closed,
 --   "past" = drawn. winning_ticket is shown only once drawn.
+-- is_latest: 1 on at most ONE raffle (the console clears the others) — that
+--   raffle is also served at /raffles/latest while published; 'latest' is a
+--   reserved slug.
 -- claim_requirements: newline-separated list (the console's Firearm /
 -- Standard presets fill it; claim_preset records which one was used).
 -- Tickets are never sold online (Texas law) — how_to_buy says so.
@@ -325,6 +328,7 @@ CREATE TABLE IF NOT EXISTS raffles (
     beneficiary_text     TEXT,
     status               TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('draft','open','closed','drawn')),
     visibility           TEXT NOT NULL DEFAULT 'draft',   -- draft | published | archived
+    is_latest            INTEGER NOT NULL DEFAULT 0,      -- 1 = shown at /raffles/latest
     winning_ticket       TEXT,
     is_published         INTEGER NOT NULL DEFAULT 0,
     preview_token        TEXT,        -- console Preview link (/raffles/<slug>?preview=…), ~30 min

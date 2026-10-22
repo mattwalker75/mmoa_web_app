@@ -122,7 +122,8 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   `archived`, like events), `status` = the **stage** (`open` | `closed` |
   `drawn`; `draft` is a legacy value — on boot it becomes visibility draft +
   stage open), `winning_ticket`, `is_published` (legacy mirror, 1 only while
-  published), `preview_token` + `preview_expires_at` (console Preview),
+  published), `is_latest` (1 on at most one raffle — the console clears the
+  others — also served at `/raffles/latest`; `latest` is a reserved slug), `preview_token` + `preview_expires_at` (console Preview),
   `created_at`, `updated_at`. Public = `visibility = 'published'` (any stage);
   "current" = open/closed, "past" = drawn; `winning_ticket` is only sent once
   drawn. The stage can be stepped in any visibility, so a draft can be
@@ -166,7 +167,7 @@ remove files).
    — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
    `organizations.search_tags`, `events.status`, `events.preview_token`,
    `events.preview_expires_at`, `events.is_latest`, `raffles.preview_token`,
-   `raffles.preview_expires_at`, `raffles.visibility`.
+   `raffles.preview_expires_at`, `raffles.visibility`, `raffles.is_latest`.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
    missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
    plus the `events.status` backfill and the raffle visibility / stage

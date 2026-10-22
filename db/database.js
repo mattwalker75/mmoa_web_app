@@ -261,7 +261,9 @@ const COLUMN_MIGRATIONS = [
   ['raffles', 'preview_expires_at', 'TIMESTAMP NULL'],
   // Raffle visibility (2026-10): draft | published | archived, like events;
   // `status` is now only the stage (open → closed → drawn).
-  ['raffles', 'visibility', "VARCHAR(16) NOT NULL DEFAULT 'draft'"]
+  ['raffles', 'visibility', "VARCHAR(16) NOT NULL DEFAULT 'draft'"],
+  // The one raffle shown at /raffles/latest (as events.is_latest).
+  ['raffles', 'is_latest', 'INTEGER NOT NULL DEFAULT 0']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is
