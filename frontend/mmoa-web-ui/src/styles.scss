@@ -288,6 +288,9 @@ p { margin: 0 0 1rem; }
 .detail-body section h2 { font-size: 28px; margin: 0 0 10px; }
 .flyer-btn { padding: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); cursor: zoom-in; display: block; width: 100%; }
 .flyer-btn img { width: 100%; display: block; }
+/* Event page header: the cover photo, wide and short (3:1; 2:1 on phones). */
+.detail-cover { display: block; width: 100%; aspect-ratio: 3 / 1; object-fit: cover; border-radius: 16px; border: 1px solid var(--line); margin-top: 20px; }
+@media (max-width: 640px) { .detail-cover { aspect-ratio: 2 / 1; } }
 .media-main { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 16px; border: 1px solid var(--line); display: block; }
 .thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .thumbs button { padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: none; cursor: pointer; min-height: 70px; }

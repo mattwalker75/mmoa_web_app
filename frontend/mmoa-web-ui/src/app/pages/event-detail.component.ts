@@ -35,18 +35,17 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
       } @else if (state() === 'error') {
         <div class="alert alert-error" role="alert" style="margin-top:20px">We couldn't load this event. Please try again later.</div>
       } @else if (ev(); as e) {
+        <!-- Cover photo = the page header (also the event card's picture);
+             the flyer sits in the left column. Either can be missing. -->
+        @if (e.cover_url) { <img class="detail-cover" [src]="e.cover_url" alt=""> }
         <div class="detail">
-          @if (e.flyer_url || e.cover_url) {
+          @if (e.flyer_url) {
             <div class="detail-media">
-              @if (e.flyer_url) {
-                <button type="button" class="flyer-btn" (click)="flyer.open()" aria-label="Open the event flyer full size">
-                  <img [src]="e.flyer_url" [alt]="'Flyer for ' + e.title">
-                </button>
-                <span class="muted small">Tap the flyer to view it full size or download it.</span>
-                <app-flyer-dialog #flyer [url]="e.flyer_url" [alt]="'Flyer for ' + e.title" [label]="e.title + ' — flyer'" />
-              } @else {
-                <img class="media-main" [src]="e.cover_url" alt="">
-              }
+              <button type="button" class="flyer-btn" (click)="flyer.open()" aria-label="Open the event flyer full size">
+                <img [src]="e.flyer_url" [alt]="'Flyer for ' + e.title">
+              </button>
+              <span class="muted small">Tap the flyer to view it full size or download it.</span>
+              <app-flyer-dialog #flyer [url]="e.flyer_url" [alt]="'Flyer for ' + e.title" [label]="e.title + ' — flyer'" />
             </div>
           }
           <div class="detail-body">
