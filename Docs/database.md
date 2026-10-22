@@ -118,10 +118,15 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   `ticket_price_text`, `drawing_at`, `drawing_location`, `how_to_buy` (default:
   in-person-only / Texas-law text), `claim_requirements` (newline list),
   `claim_preset` (`firearm` | `standard` | `custom`), `beneficiary_org_id`
-  (NULL, SET NULL), `beneficiary_text`, `status` (`draft` | `open` | `closed`
-  | `drawn`, CHECK), `winning_ticket`, `is_published`, `created_at`,
-  `updated_at`. Public = published AND not draft; "current" = open/closed,
-  "past" = drawn; `winning_ticket` is only sent once drawn.
+  (NULL, SET NULL), `beneficiary_text`, `visibility` (`draft` | `published` |
+  `archived`, like events), `status` = the **stage** (`open` | `closed` |
+  `drawn`; `draft` is a legacy value — on boot it becomes visibility draft +
+  stage open), `winning_ticket`, `is_published` (legacy mirror, 1 only while
+  published), `preview_token` + `preview_expires_at` (console Preview),
+  `created_at`, `updated_at`. Public = `visibility = 'published'` (any stage);
+  "current" = open/closed, "past" = drawn; `winning_ticket` is only sent once
+  drawn. The stage can be stepped in any visibility, so a draft can be
+  previewed in each stage.
 - **`raffle_images`** — `image_id`, `raffle_id` (CASCADE), `path`
   (`raffles/…`), `alt`, `sort` (prize photos, up to 8 — console-enforced).
 - **`board_members`** — `board_id`, `role_title`, `role_description`,
@@ -161,10 +166,11 @@ remove files).
    — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
    `organizations.search_tags`, `events.status`, `events.preview_token`,
    `events.preview_expires_at`, `events.is_latest`, `raffles.preview_token`,
-   `raffles.preview_expires_at`.
+   `raffles.preview_expires_at`, `raffles.visibility`.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
    missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
-   plus the `events.status` backfill above (an idempotent `UPDATE`).
+   plus the `events.status` backfill and the raffle visibility / stage
+   conversion described above (idempotent `UPDATE`s).
 
 When you add a column: add it to **both** `setup_*.sql` files **and**
 `COLUMN_MIGRATIONS`. A new table: add it to both files and append its name to

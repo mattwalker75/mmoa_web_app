@@ -296,8 +296,14 @@ CREATE INDEX IF NOT EXISTS idx_event_beneficiaries_event ON event_beneficiaries(
 -- ----------------------------------------------------------------------------
 -- RAFFLES
 -- ----------------------------------------------------------------------------
--- Public only when is_published = 1 AND status <> 'draft'. "Current" =
--- open | closed, "past" = drawn. winning_ticket is shown only once drawn.
+-- visibility: draft (console only) | published (on the website) | archived
+--   (taken down, kept for reference). Public only when visibility =
+--   'published'. is_published is a legacy mirror (1 only while published).
+-- status = the STAGE: open (selling tickets) → closed (sales ended) → drawn
+--   (winner announced); it can be stepped in any visibility, so a draft can
+--   be previewed in each stage. 'draft' is a legacy stage value (converted
+--   to visibility draft + stage open on boot). "Current" = open | closed,
+--   "past" = drawn. winning_ticket is shown only once drawn.
 -- claim_requirements: newline-separated list (the console's Firearm /
 -- Standard presets fill it; claim_preset records which one was used).
 -- Tickets are never sold online (Texas law) — how_to_buy says so.
@@ -317,7 +323,8 @@ CREATE TABLE IF NOT EXISTS raffles (
     claim_preset         TEXT,
     beneficiary_org_id   INTEGER,
     beneficiary_text     TEXT,
-    status               TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','open','closed','drawn')),
+    status               TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('draft','open','closed','drawn')),
+    visibility           TEXT NOT NULL DEFAULT 'draft',   -- draft | published | archived
     winning_ticket       TEXT,
     is_published         INTEGER NOT NULL DEFAULT 0,
     preview_token        TEXT,        -- console Preview link (/raffles/<slug>?preview=…), ~30 min

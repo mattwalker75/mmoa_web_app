@@ -100,7 +100,7 @@ export interface Raffle {
   claim_preset?: string | null;
   /** Only on an admin preview (console preview link). */
   preview?: boolean;
-  preview_state?: 'draft' | 'hidden' | 'live';
+  preview_state?: 'draft' | 'archived' | 'live';
 }
 
 export interface BoardMember {

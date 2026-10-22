@@ -178,8 +178,8 @@ async function add(db) {
   } else {
     const ins = await db.runAsync(
       `INSERT INTO raffles (slug, title, prize_description_md, total_tickets, ticket_price_text, drawing_at, drawing_location,
-         claim_requirements, claim_preset, beneficiary_org_id, status, is_published, created_at, updated_at)
-       VALUES (?, ?, ?, 250, '$20 each or 6 for $100', ?, 'at the Chili Cook-Off', ?, 'firearm', ?, 'open', 1, ?, ?)`,
+         claim_requirements, claim_preset, beneficiary_org_id, status, visibility, is_published, created_at, updated_at)
+       VALUES (?, ?, ?, 250, '$20 each or 6 for $100', ?, 'at the Chili Cook-Off', ?, 'firearm', ?, 'open', 'published', 1, ?, ?)`,
       [raffleSlug, '[Sample] Over/Under Shotgun Raffle',
         '12-gauge over/under with a walnut stock. **New in box.**\n\nRetail value about $900.',
         centralToSql(chiliDay, 15, 0), FIREARM_RULES, orgIds['sample-org-2'], now, now]);

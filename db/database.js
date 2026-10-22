@@ -258,7 +258,10 @@ const COLUMN_MIGRATIONS = [
   ['events', 'is_latest', 'INTEGER NOT NULL DEFAULT 0'],
   // The console's Preview link for raffles (2026-10), as for events.
   ['raffles', 'preview_token', 'VARCHAR(64)'],
-  ['raffles', 'preview_expires_at', 'TIMESTAMP NULL']
+  ['raffles', 'preview_expires_at', 'TIMESTAMP NULL'],
+  // Raffle visibility (2026-10): draft | published | archived, like events;
+  // `status` is now only the stage (open → closed → drawn).
+  ['raffles', 'visibility', "VARCHAR(16) NOT NULL DEFAULT 'draft'"]
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is
@@ -385,7 +388,16 @@ const ROW_MIGRATIONS = [
   // clears is_published for drafts and archived events, so this never
   // republishes one of those.
   { table: 'events', sqlite: "UPDATE events SET status = 'published' WHERE is_published = 1 AND status = 'draft'",
-    mysql: "UPDATE events SET status = 'published' WHERE is_published = 1 AND status = 'draft'" }
+    mysql: "UPDATE events SET status = 'published' WHERE is_published = 1 AND status = 'draft'" },
+  // Raffles: what was public (published, past the old 'draft' stage) →
+  // visibility 'published'. THEN the old 'draft' stage becomes visibility
+  // draft (the default) + stage 'open', with is_published cleared — it was
+  // never public, and clearing it keeps the line above from publishing it
+  // on a later boot. The console keeps is_published in step from then on.
+  { table: 'raffles', sqlite: "UPDATE raffles SET visibility = 'published' WHERE is_published = 1 AND status <> 'draft' AND visibility = 'draft'",
+    mysql: "UPDATE raffles SET visibility = 'published' WHERE is_published = 1 AND status <> 'draft' AND visibility = 'draft'" },
+  { table: 'raffles', sqlite: "UPDATE raffles SET status = 'open', is_published = 0 WHERE status = 'draft'",
+    mysql: "UPDATE raffles SET status = 'open', is_published = 0 WHERE status = 'draft'" }
 ];
 
 async function runRowMigrations(db) {

@@ -22,7 +22,7 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
           <strong>Preview</strong>
           @switch (r()!.preview_state) {
             @case ('live') { — this raffle is published and live on the website. }
-            @case ('hidden') { — this raffle is <b>hidden</b>: it is not on the website. }
+            @case ('archived') { — this raffle is <b>archived</b>: it is not on the website. }
             @default { — this raffle is a <b>draft</b>: it is not on the website yet. }
           }
         </div>

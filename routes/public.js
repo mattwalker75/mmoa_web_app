@@ -15,8 +15,8 @@
 // Visibility rules (the whole point of this file — keep them here):
 //   events   — status = 'published' only (a valid console preview token
 //              also shows a draft / archived one, marked preview).
-//   raffles  — is_published = 1 AND status <> 'draft'; winning_ticket only once drawn.
-//              (A valid console preview token also shows a draft / hidden one.)
+//   raffles  — visibility = 'published' (any stage); winning_ticket only once drawn.
+//              (A valid console preview token also shows a draft / archived one.)
 //   orgs     — verification_status = 'verified' AND is_listed = 1 only, and
 //              then only the fields in public_fields (helpers/orgs.js). The
 //              EIN is never sent. Everything else is a 404 — indistinguishable
@@ -234,8 +234,8 @@ module.exports = function (db, appConfig) {
     const which = req.query.status === 'past' ? 'past' : 'current';
     try {
       const rows = which === 'past'
-        ? await db.allAsync("SELECT * FROM raffles WHERE is_published = 1 AND status = 'drawn'")
-        : await db.allAsync("SELECT * FROM raffles WHERE is_published = 1 AND status IN ('open','closed')");
+        ? await db.allAsync("SELECT * FROM raffles WHERE visibility = 'published' AND status = 'drawn'")
+        : await db.allAsync("SELECT * FROM raffles WHERE visibility = 'published' AND status IN ('open','closed')");
       const t = (r) => { const ms = parseSqlTimeMs(r.drawing_at); return Number.isFinite(ms) ? ms : null; };
       rows.sort((a, b) => {
         // current: open before closed, then soonest drawing first (undated last);
@@ -255,17 +255,17 @@ module.exports = function (db, appConfig) {
   });
 
   /** The public raffle for a slug, or null. With a valid console preview
-   *  token it's returned even as a draft / hidden, flagged `preview` with
-   *  `preview_state` (draft | hidden | live) for the page's banner. */
+   *  token it's returned even as a draft / archived, flagged `preview` with
+   *  `preview_state` (draft | archived | live) for the page's banner. */
   async function findPublishedRaffle(slug, previewToken) {
     if (!SLUG_RE.test(slug || '') || slug.length > 120) return null;
     const r = await db.getAsync('SELECT * FROM raffles WHERE slug = ?', [slug]);
     if (!r) return null;
-    const live = Number(r.is_published) === 1 && r.status !== 'draft';
+    const live = r.visibility === 'published';
     const preview = validPreview(r, previewToken);
     if (!live && !preview) return null;
     const out = (await publicRaffles([r], true))[0];
-    if (preview) { out.preview = true; out.preview_state = r.status === 'draft' ? 'draft' : live ? 'live' : 'hidden'; }
+    if (preview) { out.preview = true; out.preview_state = live ? 'live' : r.visibility === 'archived' ? 'archived' : 'draft'; }
     return out;
   }
 
