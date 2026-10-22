@@ -253,7 +253,9 @@ const COLUMN_MIGRATIONS = [
   // console's short-lived preview link.
   ['events', 'status', "VARCHAR(16) NOT NULL DEFAULT 'draft'"],
   ['events', 'preview_token', 'VARCHAR(64)'],
-  ['events', 'preview_expires_at', 'TIMESTAMP NULL']
+  ['events', 'preview_expires_at', 'TIMESTAMP NULL'],
+  // The one event shown at /events/latest (2026-10; console keeps it to one).
+  ['events', 'is_latest', 'INTEGER NOT NULL DEFAULT 0']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is

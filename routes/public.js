@@ -145,10 +145,14 @@ module.exports = function (db, appConfig) {
   }
 
   /** The public event for a slug, or null. With a valid preview token the
-   *  event is returned whatever its status, flagged `preview`. */
+   *  event is returned whatever its status, flagged `preview`. The slug
+   *  'latest' (reserved — the console won't give an event that slug) means
+   *  the event marked is_latest; it must be published like any other. */
   async function findPublishedEvent(slug, previewToken) {
     if (!SLUG_RE.test(slug || '') || slug.length > 120) return null;
-    const r = await db.getAsync('SELECT * FROM events WHERE slug = ?', [slug]);
+    const r = slug === 'latest'
+      ? await db.getAsync('SELECT * FROM events WHERE is_latest = 1 ORDER BY event_id DESC LIMIT 1', [])
+      : await db.getAsync('SELECT * FROM events WHERE slug = ?', [slug]);
     if (!r) return null;
     const preview = validPreview(r, previewToken);
     if (r.status !== 'published' && !preview) return null;

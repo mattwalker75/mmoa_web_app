@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS events (
     status             VARCHAR(16) NOT NULL DEFAULT 'draft',
     preview_token      VARCHAR(64) NULL,
     preview_expires_at TIMESTAMP NULL,
+    is_latest          TINYINT(1) NOT NULL DEFAULT 0,
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMP NULL,
     INDEX idx_events_starts (starts_at),

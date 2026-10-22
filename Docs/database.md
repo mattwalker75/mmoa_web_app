@@ -102,7 +102,10 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   `archived`, default `draft`), `is_published` (legacy mirror — 1 only while
   published; the console keeps it in step, and a boot row migration turns
   any `is_published = 1` draft into `published`), `preview_token` +
-  `preview_expires_at` (the console's 30-minute Preview link),
+  `preview_expires_at` (the console's 30-minute Preview link), `is_latest`
+  (1 on at most one event — the console clears the others when it sets one;
+  that event is also served at `/events/latest`, so `latest` is a reserved
+  slug),
   `created_at`, `updated_at`. Public = `status = 'published'`; "upcoming" = `starts_at` no
   more than 12 h ago (sorted soonest first); "past" = the rest, newest first,
   50 max.
@@ -157,7 +160,7 @@ remove files).
 3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored)
    — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
    `organizations.search_tags`, `events.status`, `events.preview_token`,
-   `events.preview_expires_at`.
+   `events.preview_expires_at`, `events.is_latest`.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
    missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
    plus the `events.status` backfill above (an idempotent `UPDATE`).

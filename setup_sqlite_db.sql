@@ -240,6 +240,9 @@ CREATE TABLE IF NOT EXISTS org_cities (
 --   by the console (1 only while published).
 -- preview_token / preview_expires_at: a short-lived link the console makes so
 --   an admin can see the real page before publishing (/events/<slug>?preview=…).
+-- is_latest: 1 on at most ONE event (the console clears the others when it
+--   sets one) — that event is also reachable at /events/latest while it is
+--   published. 'latest' is therefore reserved as a slug.
 -- starts_at / ends_at are UTC 'YYYY-MM-DD HH:MM:SS'. "Upcoming" = starts_at
 -- no more than 12 hours ago. description_md uses the markdown-lite rules
 -- (helpers/markdownLite.js). map_url blank → the site builds a Google Maps
@@ -269,6 +272,7 @@ CREATE TABLE IF NOT EXISTS events (
     status             TEXT NOT NULL DEFAULT 'draft',  -- draft | published | archived
     preview_token      TEXT,
     preview_expires_at TIMESTAMP,
+    is_latest          INTEGER NOT NULL DEFAULT 0,   -- 1 = shown at /events/latest
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMP
 );
