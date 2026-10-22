@@ -30,7 +30,7 @@ const FIELD_NAMES: Record<string, string> = {
 };
 
 type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'phone' | 'phone_ext' | 'public_email' |
-  'website_url' | 'facebook_url' | 'instagram_url' | 'other_social_url' | 'description_md' | 'hours' | 'what_to_bring', string>;
+  'website_url' | 'facebook_url' | 'instagram_url' | 'other_social_url' | 'description_md' | 'hours' | 'what_to_bring' | 'search_tags', string>;
 
 /**
  * /portal (NonprofitPortal mockup) — the signed-in nonprofit edits its
@@ -191,6 +191,20 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
               </div>
             </section>
 
+            <!-- Search keywords (private) -->
+            <section id="keywords" class="card" aria-labelledby="h-kw">
+              <div class="sec-vis">
+                <h2 id="h-kw" style="margin:0">Search keywords</h2>
+                <span class="private-badge">Never shown publicly</span>
+              </div>
+              <label for="p-tags" style="display:block;margin-bottom:8px">
+                <span style="display:block;font-weight:600">Words people might type when looking for help you offer.</span>
+                <span class="muted">Separate them with commas — e.g. "groceries, food bank, SNAP, diapers, baby formula". They only help people find you in "Need Help?" search; nobody sees them.</span>
+              </label>
+              <textarea id="p-tags" class="textarea" name="search_tags" rows="3" maxlength="2000" [(ngModel)]="f.search_tags"
+                        (blur)="f.search_tags = tidyTags(f.search_tags)"></textarea>
+            </section>
+
             <!-- What to bring -->
             <section id="bring" class="card" aria-labelledby="h-bring">
               <div class="sec-vis">
@@ -325,6 +339,7 @@ export class PortalComponent {
 
   sections = [
     { id: 'organization', label: 'Organization' }, { id: 'services', label: 'Services we provide' },
+    { id: 'keywords', label: 'Search keywords' },
     { id: 'bring', label: 'What to bring' }, { id: 'contacts', label: 'Contacts' }, { id: 'photos', label: 'Photos' },
     { id: 'visibility', label: 'Visibility' }, { id: 'login', label: 'Login & password' }
   ];
@@ -369,7 +384,7 @@ export class PortalComponent {
 
   private blankForm(): FormModel {
     return { name: '', ein: '', address_line1: '', address_line2: '', city: '', state: 'TX', zip: '', phone: '', phone_ext: '', public_email: '',
-      website_url: '', facebook_url: '', instagram_url: '', other_social_url: '', description_md: '', hours: '', what_to_bring: '' };
+      website_url: '', facebook_url: '', instagram_url: '', other_social_url: '', description_md: '', hours: '', what_to_bring: '', search_tags: '' };
   }
 
   private async load() {
@@ -397,6 +412,12 @@ export class PortalComponent {
     this.data.set(p);
   }
 
+  /** Same clean-up the server does: commas between, no blanks or repeats. */
+  tidyTags(v: string): string {
+    const seen = new Set<string>();
+    return (v || '').split(/[,\n]+/).map(t => t.replace(/\s+/g, ' ').trim())
+      .filter(t => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).join(', ');
+  }
   getF(k: string): string { return this.f[k as keyof FormModel]; }
   setF(k: string, v: string) { this.f[k as keyof FormModel] = k === 'phone' ? typePhone(v) : v; }
 

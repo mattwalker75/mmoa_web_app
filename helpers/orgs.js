@@ -133,13 +133,15 @@ function publicOrg(o) {
   return out;
 }
 
-/** Text a keyword search may match: PUBLIC fields only, lowercased. */
-function publicSearchText(o) {
+/** Text a keyword search may match, lowercased: the name, the PUBLIC
+ *  address, hours, services and cities served, plus the org's private search
+ *  keywords (written only to be searched; never shown). The description and
+ *  "what to bring" are deliberately left out — too many incidental words. */
+function searchText(o) {
   const p = publicOrg(o);
   return [
     p.name, p.address && p.address.text, p.hours,
-    o.description_md && p.description_html ? o.description_md : '',
-    (p.what_to_bring || []).join(' '),
+    o.search_tags || '',
     (p.categories || []).map(c => c.name).join(' '),
     (p.service_cities || []).join(' ')
   ].filter(Boolean).join(' \n ').toLowerCase();
@@ -166,6 +168,7 @@ function privateOrg(o) {
     description_md: o.description_md || '',
     hours: o.hours || '',
     what_to_bring: o.what_to_bring || '',
+    search_tags: o.search_tags || '',
     public_fields: [...parsePublicFields(o.public_fields)],
     is_listed: Number(o.is_listed) === 1,
     verification_status: o.verification_status || 'unverified',
@@ -184,5 +187,5 @@ function privateOrg(o) {
 
 module.exports = {
   PUBLIC_FIELD_KEYS, MAX_ORG_IMAGES, parsePublicFields, lines, mapsSearchUrl,
-  loadOrgs, isPublic, publicOrg, publicSearchText, privateOrg
+  loadOrgs, isPublic, publicOrg, searchText, privateOrg
 };

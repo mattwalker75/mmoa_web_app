@@ -245,7 +245,9 @@ function initMysql(cfg) {
 const COLUMN_MIGRATIONS = [
   // Optional phone extensions (2026-10): digits only, shown as "ext. 123".
   ['organizations', 'phone_ext', 'VARCHAR(10)'],
-  ['org_contacts', 'phone_ext', 'VARCHAR(10)']
+  ['org_contacts', 'phone_ext', 'VARCHAR(10)'],
+  // Private search keywords (2026-10): comma-separated, never shown publicly.
+  ['organizations', 'search_tags', 'TEXT']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is

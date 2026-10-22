@@ -331,7 +331,8 @@ module.exports = function (db, appConfig) {
       const words = tokenize(q).slice(0, 10);
 
       // Matching uses PUBLIC data only — a category, city or text an org has
-      // hidden must not make it show up (that would leak the hidden value).
+      // hidden must not make it show up (that would leak the hidden value) —
+      // plus the private search keywords, which exist only to be matched.
       const results = [];
       const scores = new Map();
       const catHits = new Map();
@@ -349,12 +350,13 @@ module.exports = function (db, appConfig) {
           if (!serves && !basedThere) continue;
         }
         if (words.length) {
-          // Every query word must match a WORD in the public text (not any
+          // Every query word must match a WORD in the search text (not any
           // substring: "rent" must not hit "parents"). Name hits rank above
-          // category hits, which rank above description/what-to-bring hits.
-          const all = tokenize(orgsHelper.publicSearchText(o));
+          // service-category and search-keyword hits, which rank above
+          // address / hours / city hits.
+          const all = tokenize(orgsHelper.searchText(o));
           const name = tokenize(p.name);
-          const cats = tokenize((p.categories || []).map(c => c.name).join(' '));
+          const cats = tokenize((p.categories || []).map(c => c.name).join(' ') + ' ' + (o.search_tags || ''));
           let score = 0;
           if (!words.every(w => {
             if (!all.some(t => wordMatches(t, w))) return false;

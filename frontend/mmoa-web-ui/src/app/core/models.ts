@@ -153,6 +153,8 @@ export interface PrivateOrg {
   phone: string; phone_ext: string; public_email: string;
   website_url: string; facebook_url: string; instagram_url: string; other_social_url: string;
   description_md: string; hours: string; what_to_bring: string;
+  /** Private search keywords, comma-separated — never shown publicly. */
+  search_tags: string;
   public_fields: string[];
   is_listed: boolean;
   verification_status: 'unverified' | 'verified' | 'rejected';

@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     description_md      TEXT NULL,
     hours               TEXT NULL,
     what_to_bring       TEXT NULL,
+    search_tags         TEXT NULL,
     public_fields       VARCHAR(1000) NULL DEFAULT '["address","phone","public_email","website_url","facebook_url","instagram_url","other_social_url","description","hours","what_to_bring","contacts","images","service_cities","categories"]',
     is_listed           TINYINT(1) NOT NULL DEFAULT 1,
     verification_status VARCHAR(16) NOT NULL DEFAULT 'unverified',

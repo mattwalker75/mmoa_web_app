@@ -469,3 +469,6 @@ dialog.preview-dialog { width: min(96vw, 980px); }
   .np-viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
   .np-list[aria-hidden="true"], .np-toggle { display: none; }
 }
+
+/* Portal: "Never shown publicly" marker (sits where the Public/Hidden switch goes). */
+.private-badge { font-size: 14px; font-weight: 700; color: var(--muted); border: 1px dashed var(--line-strong, #4a4b4d); border-radius: 999px; padding: 6px 12px; white-space: nowrap; }

@@ -123,6 +123,8 @@ CREATE INDEX IF NOT EXISTS idx_login_lockouts_locked ON login_lockouts(locked_un
 -- ein: 9 digits stored as 'XX-XXXXXXX'; editable by the org only while
 --   verification_status = 'unverified'.
 -- what_to_bring: newline-separated list.
+-- search_tags: private comma-separated search keywords (never shown publicly;
+--   only used to match the "Need Help?" keyword search).
 -- public_fields: JSON array of field keys shown publicly — any of
 --   address, phone, public_email, website_url, facebook_url, instagram_url,
 --   other_social_url, description, hours, what_to_bring, contacts, images,
@@ -151,6 +153,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     description_md      TEXT,
     hours               TEXT,
     what_to_bring       TEXT,
+    search_tags         TEXT,             -- private search keywords, comma-separated
     public_fields       TEXT DEFAULT '["address","phone","public_email","website_url","facebook_url","instagram_url","other_social_url","description","hours","what_to_bring","contacts","images","service_cities","categories"]',
     is_listed           INTEGER NOT NULL DEFAULT 1,
     verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK (verification_status IN ('unverified','verified','rejected')),

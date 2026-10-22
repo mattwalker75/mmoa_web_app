@@ -170,6 +170,12 @@ module.exports = function (db, appConfig, { requireVerified }) {
         if (u === null) throw new BadInput(msg);
         set[k] = u || null;
       }
+      if (has('search_tags')) {
+        if (b.search_tags != null && typeof b.search_tags !== 'string') throw new BadInput('Search keywords must be text');
+        const tags = fmt.normalizeSearchTags(String(b.search_tags || '').slice(0, 4000));
+        if (tags === null) throw new BadInput(`Search keywords: up to ${fmt.MAX_TAGS}, each up to ${fmt.MAX_TAG_LEN} characters`);
+        set.search_tags = tags || null;
+      }
       if (has('public_fields')) {
         if (!Array.isArray(b.public_fields)) throw new BadInput('public_fields must be a list');
         set.public_fields = JSON.stringify(orgsHelper.PUBLIC_FIELD_KEYS.filter(k => b.public_fields.includes(k)));

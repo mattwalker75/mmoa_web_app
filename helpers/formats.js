@@ -117,7 +117,24 @@ function normalizeInstagram(v) {
   return `https://www.instagram.com/${handle}/`;
 }
 
+const MAX_TAGS = 40, MAX_TAG_LEN = 50;
+/** Private search keywords: split on commas / new lines, tidy spaces, drop
+ *  repeats (any case) → 'food bank, groceries, snap'. '' for none; null when
+ *  there are too many or one is too long. */
+function normalizeSearchTags(v) {
+  const seen = new Set();
+  const tags = [];
+  for (const raw of String(v || '').split(/[,\n]+/)) {
+    const t = raw.replace(/\s+/g, ' ').trim();
+    if (!t || seen.has(t.toLowerCase())) continue;
+    if (t.length > MAX_TAG_LEN) return null;
+    seen.add(t.toLowerCase());
+    tags.push(t);
+  }
+  return tags.length > MAX_TAGS ? null : tags.join(', ');
+}
+
 module.exports = {
   US_STATES, normalizeEin, normalizeState, formatPhone, normalizeExt, normalizeEmail,
-  normalizeUrl, normalizeFacebook, normalizeInstagram
+  normalizeUrl, normalizeFacebook, normalizeInstagram, normalizeSearchTags, MAX_TAGS, MAX_TAG_LEN
 };
