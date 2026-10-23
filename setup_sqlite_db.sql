@@ -131,6 +131,12 @@ CREATE INDEX IF NOT EXISTS idx_login_lockouts_locked ON login_lockouts(locked_un
 --   service_cities, categories. Hidden categories / cities are also not used
 --   to match searches.
 -- is_listed: 0 = the org has hidden its whole profile.
+-- admin_hidden: 1 = MMoA hid the profile from the console (an override the
+--   org can't undo; the portal tells them). Public = verified AND listed AND
+--   NOT admin_hidden.
+-- preview_token / preview_expires_at: the console's ~30-minute Preview link
+--   (/need-help/preview/<org_id>?preview=…) — shows the profile whatever its
+--   status, like event / raffle previews.
 -- verified_by: console admin login that verified / rejected it.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS organizations (
@@ -156,6 +162,9 @@ CREATE TABLE IF NOT EXISTS organizations (
     search_tags         TEXT,             -- private search keywords, comma-separated
     public_fields       TEXT DEFAULT '["address","phone","public_email","website_url","facebook_url","instagram_url","other_social_url","description","hours","what_to_bring","contacts","images","service_cities","categories"]',
     is_listed           INTEGER NOT NULL DEFAULT 1,
+    admin_hidden        INTEGER NOT NULL DEFAULT 0,   -- 1 = hidden by MMoA (console)
+    preview_token       TEXT,
+    preview_expires_at  TIMESTAMP,
     verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK (verification_status IN ('unverified','verified','rejected')),
     verified_at         TIMESTAMP,
     verified_by         TEXT,

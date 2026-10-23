@@ -80,7 +80,10 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   its profile), `verification_status` (`unverified` | `verified` | `rejected`,
   CHECK), `verified_at`, `verified_by` (console admin), `verification_note`
   (console-only; not shown to the org), `created_at`, `updated_at`.
-  **Public = `verified` AND `is_listed = 1`, and then only `public_fields`.**
+  `admin_hidden` (1 = hidden by MMoA from the console — an override the org
+  can't undo), `preview_token` + `preview_expires_at` (the console's Preview
+  link). **Public = `verified` AND `is_listed = 1` AND `admin_hidden = 0`, and
+  then only `public_fields`.**
   Hidden categories / cities / text are also not used to match searches
   (`search_tags` is the one private field searches use — that's its purpose).
 - **`org_contacts`** — `contact_id`, `org_id` (CASCADE), `name`, `role`,

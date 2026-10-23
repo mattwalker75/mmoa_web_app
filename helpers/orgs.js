@@ -86,8 +86,10 @@ async function loadOrgs(db, ids) {
 }
 
 /** Is this org allowed to appear publicly at all? */
+/** In the public directory: verified, listed by the org, and not hidden by
+ *  MMoA (the console's override). */
 function isPublic(o) {
-  return !!o && o.verification_status === 'verified' && Number(o.is_listed) === 1;
+  return !!o && o.verification_status === 'verified' && Number(o.is_listed) === 1 && Number(o.admin_hidden || 0) !== 1;
 }
 
 /** Public directory shape. Hidden fields are ABSENT (not null). */

@@ -324,7 +324,11 @@ const COLUMN_MIGRATIONS = [
   // `status` is now only the stage (open → closed → drawn).
   ['raffles', 'visibility', "VARCHAR(16) NOT NULL DEFAULT 'draft'"],
   // The one raffle shown at /raffles/latest (as events.is_latest).
-  ['raffles', 'is_latest', 'INTEGER NOT NULL DEFAULT 0']
+  ['raffles', 'is_latest', 'INTEGER NOT NULL DEFAULT 0'],
+  // Nonprofits (2026-10): hidden-by-MMoA override and the console's Preview link.
+  ['organizations', 'admin_hidden', 'INTEGER NOT NULL DEFAULT 0'],
+  ['organizations', 'preview_token', 'VARCHAR(64)'],
+  ['organizations', 'preview_expires_at', 'TIMESTAMP NULL']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is

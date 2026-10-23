@@ -17,7 +17,7 @@
 //              also shows a draft / archived one, marked preview).
 //   raffles  — visibility = 'published' (any stage); winning_ticket only once drawn.
 //              (A valid console preview token also shows a draft / archived one.)
-//   orgs     — verification_status = 'verified' AND is_listed = 1 only, and
+//   orgs     — verified AND is_listed = 1 AND NOT admin_hidden (orgs.isPublic), and
 //              then only the fields in public_fields (helpers/orgs.js). The
 //              EIN is never sent. Everything else is a 404 — indistinguishable
 //              from "no such org".
@@ -344,7 +344,7 @@ module.exports = function (db, appConfig) {
   // shared between requests — callers must not mutate them.
   async function loadPublicOrgs() {
     const ids = await db.allAsync(
-      "SELECT org_id FROM organizations WHERE verification_status = 'verified' AND is_listed = 1");
+      "SELECT org_id FROM organizations WHERE verification_status = 'verified' AND is_listed = 1 AND COALESCE(admin_hidden, 0) = 0");
     return (await orgsHelper.loadOrgs(db, ids.map(r => r.org_id))).filter(orgsHelper.isPublic)
       .map(o => ({ org: o, pub: orgsHelper.publicOrg(o) }));
   }
