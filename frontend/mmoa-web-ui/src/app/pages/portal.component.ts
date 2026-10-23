@@ -53,6 +53,12 @@ type Snapshot = { f: FormModel; pub: string; listed: boolean; cats: string; city
       @if (loadErr()) { <div class="page"><div class="alert alert-error" role="alert">{{ loadErr() }}</div></div> }
       @else { <div class="loading"><span class="spinner light big" role="status" aria-label="Loading your profile"></span></div> }
     } @else {
+      @if (data()!.adminHidden) {
+        <div class="banner banner-bad" role="alert"><div class="container">
+          <strong>Hidden by Mission Men of Anna.</strong>
+          <span>Mission Men of Anna has hidden your profile from the Need Help directory. It will not appear in search until MMoA shows it again — please contact MMoA if you have questions.</span>
+        </div></div>
+      }
       @switch (status()) {
         @case ('unverified') {
           <div class="banner" role="status"><div class="container">
@@ -71,14 +77,14 @@ type Snapshot = { f: FormModel; pub: string; listed: boolean; cats: string; city
             <strong>Verified by MMoA.</strong>
             @if (data()!.isPublic) {
               <span>Your profile is live in "Need Help?". <a [routerLink]="['/need-help/org', data()!.org.org_id]" style="color:inherit">View your public profile</a></span>
-            } @else {
+            } @else if (!data()!.adminHidden) {
               <span>Your profile is hidden — turn on "List my organization" under Visibility to show it in search.</span>
             }
           </div></div>
         }
       }
 
-      <app-profile-preview-dialog [org]="data()!.preview" [isPublic]="data()!.isPublic" [loading]="previewLoading()" />
+      <app-profile-preview-dialog [org]="data()!.preview" [isPublic]="data()!.isPublic" [adminHidden]="data()!.adminHidden" [loading]="previewLoading()" />
 
       <div class="page">
         <div class="portal">
@@ -602,7 +608,7 @@ export class PortalComponent implements HasUnsavedChanges {
     try {
       const p = await firstValueFrom(this.api.portalOrg());
       const cur = this.data();
-      if (cur) this.data.set({ ...cur, preview: p.preview, isPublic: p.isPublic });
+      if (cur) this.data.set({ ...cur, preview: p.preview, isPublic: p.isPublic, adminHidden: p.adminHidden });
     } catch { /* preview just stays as it was */ }
   }
 

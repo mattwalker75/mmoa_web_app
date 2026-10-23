@@ -443,7 +443,7 @@ dialog.flyer-dialog::backdrop { background: rgba(0,0,0,.8); }
 /* "Preview public profile" pop-up (reuses the flyer dialog chrome). */
 dialog.preview-dialog { width: min(96vw, 980px); }
 .preview-dialog .pp-body { padding: 20px 24px 28px; }
-.preview-dialog .pp-h { font-family: var(--font); text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 20px; margin: 0; color: var(--link); }
+.pp-h { /* preview section heading (portal dialog + /need-help/preview) */  font-family: var(--font); text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 20px; margin: 0; color: var(--link); }
 
 
 /* ── Home: partner nonprofit slideshow (left → right marquee) ─────────── */

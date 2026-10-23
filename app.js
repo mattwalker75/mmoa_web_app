@@ -8,7 +8,8 @@
 //   4. Serve the admin-editable website images from HTML/images/ and the
 //      uploaded images from uploads/.
 //   5. Serve the Angular build from frontend/mmoa-web-ui/dist when present
-//      (with Open Graph tags injected on /events/:slug and /raffles/:slug).
+//      (with Open Graph tags injected on /events/:slug and /raffles/:slug;
+//      /need-help/preview/:id is the console's org preview).
 //
 // There is deliberately NO admin surface here: nonprofits, events, raffles,
 // website content and settings are all managed from the separate
@@ -295,6 +296,16 @@ if (spaBuilt) {
         path: '/raffles/' + r.slug,
         image: r.image_url || r.flyer_url || defaultImage
       });
+    } catch (e) { next(e); }
+  });
+  // The console's Preview of a nonprofit profile (any status). No Open Graph
+  // here: the page is never shared. Without a valid token the plain index is
+  // served and the SPA page says the link has expired.
+  app.get('/need-help/preview/:id', async (req, res, next) => {
+    try {
+      const found = req.query.preview && await publicApi.findDirectoryOrg(Number(req.params.id), req.query.preview);
+      if (found && found.preview) return sendPreview(res);
+      next();
     } catch (e) { next(e); }
   });
 }

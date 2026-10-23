@@ -5,6 +5,10 @@
 //
 // The SPA mirrors these rules in frontend/.../core/formats.ts to format as
 // people type; THIS file is the gatekeeper — keep the two in step.
+//
+// The admin console keeps a VERBATIM copy of this file
+// (mmoa_admin_console/helpers/formats.js) so its org editor normalizes the
+// same way. The two must stay identical — change them together.
 
 'use strict';
 

@@ -3,7 +3,7 @@
 // with a verified email (requireVerified, passed in from api.js so the
 // session re-check logic lives in one place).
 //
-//   GET    /api/portal/org                — full profile incl. hidden fields + status
+//   GET    /api/portal/org                — full profile incl. hidden fields + status (+ adminHidden)
 //   PUT    /api/portal/org                — update profile (fields present in the body only)
 //   POST   /api/portal/org/images         — multipart, field "image" (+ optional "alt"); max 5
 //   DELETE /api/portal/org/images/:id     — remove one photo (row + file)
@@ -78,6 +78,10 @@ module.exports = function (db, appConfig, { requireVerified }) {
       // whether it is live in search right now.
       preview: orgsHelper.publicOrg(o),
       isPublic: orgsHelper.isPublic(o),
+      // MMoA hid the profile from the console (organizations.admin_hidden).
+      // Read-only here: PUT builds its UPDATE from a fixed allow-list, so a
+      // client can't send it back.
+      adminHidden: Number(o.admin_hidden || 0) === 1,
       account: acct || null,
       options: {
         categories, cities,

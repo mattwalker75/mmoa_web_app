@@ -75,9 +75,9 @@ subdomains) removed.
 | GET | `/api/board` | `{ board: [{board_id, role_title, role_description, person_name, photo_url}] }` |
 | GET | `/api/directory/meta` | `{ categories: [{category_id, slug, name}], cities: [{city_id, name}] }` (active only) |
 | GET | `/api/directory/search?category=<slug>[,<slug>…]&city=<name\|any>&q=<text>` | `{ categories: [{slug, name}], category (first pick, legacy), city, q, count, results: [PublicOrg] }` — verified + listed only, public fields only; several categories = an org matching ANY of them (comma-separated or repeated `category`); 400 for an unknown category/city. See [Need Help search](#need-help-search) |
-| GET | `/api/directory/orgs/:id` | `{ org: PublicOrg }`, or 404 unless verified + listed |
+| GET | `/api/directory/orgs/:id` | `{ org: PublicOrg }`, or 404 unless public (verified + listed + not hidden by MMoA). `?preview=<token>` (the console's unexpired `organizations.preview_token`, loaded straight from the DB, not the cache) returns the org whatever its status as `{ org, preview: true, preview_state: live\|unverified\|rejected\|unlisted\|hidden_by_mmoa }` (sent `no-store`; `preview_token` / `admin_hidden` never in the body) |
 | POST | `/api/auth/signup` | `{ org_name, ein, first_name, last_name, email, login_name, password, confirm_password }` → creates the login **and** its organization (unverified) in one transaction, emails a verification link (`devLink` too when the bypass is on). EIN: 9 digits, `12-3456789` or `123456789` |
-| GET | `/api/portal/org` | Signed in + verified email. `{ org: PrivateOrg (incl. hidden fields + verification_status), preview: PublicOrg, isPublic, account, options: {categories, cities, publicFieldKeys, maxImages} }` |
+| GET | `/api/portal/org` | Signed in + verified email. `{ org: PrivateOrg (incl. hidden fields + verification_status), preview: PublicOrg, isPublic, adminHidden (MMoA hid the profile from the console; the portal shows a notice), account, options: {categories, cities, publicFieldKeys, maxImages} }` |
 | PUT | `/api/portal/org` | Any subset of the profile fields + `public_fields[]`, `is_listed`, `contacts[]` (≤10), `categories[]` (slugs), `city_ids[]`, `search_tags`; keys not sent are left alone. Fields are normalized or refused with a 400 message (`helpers/formats.js`): EIN `12-3456789`, state = a USPS code (blank → `TX`), phones `(123) 456-7890` + `phone_ext` 1–6 digits (cleared with the phone), emails, http(s) links, Facebook / Instagram profile links, ≤40 search keywords of ≤50 chars. EIN changes refused once reviewed. Returns the GET payload + `message` |
 | POST | `/api/portal/org/images` | multipart, field `image` (+ optional `alt`); JPEG/PNG/WebP by magic bytes, ≤8 MB, ≤5 per org → `201 { image, images }` |
 | DELETE | `/api/portal/org/images/:id` | Own photos only; deletes row + file → `{ images }` |
@@ -137,7 +137,12 @@ or unpublished slugs get the plain index with status 404. With a valid
 noindex` — the console shows that page in a framed pop-up on its own origin.
 Only that response is frameable; it's read-only and needs a fresh token
 (30 min, newest only) that only console admins get. The SPA shows a
-"Preview" banner on it.
+"Preview" banner on it. `GET /need-help/preview/<id>?preview=<token>` is the
+same thing for a nonprofit profile (`organizations.preview_token`): with a
+valid token the frameable index is served and the SPA page shows the
+preview banner (live / not verified / rejected / unlisted / hidden by MMoA)
+plus the search-result card and the full profile; without one the plain
+index is served and the page says the link has expired.
 
 ## The no-admin-surface principle
 

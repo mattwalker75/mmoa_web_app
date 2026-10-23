@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   PublicConfig, User, SiteInfo, EventItem, Raffle, BoardMember, Category, City,
-  SearchResponse, PublicOrg, PortalPayload, OrgImage, LinkSentResponse
+  SearchResponse, PublicOrg, OrgPreview, PortalPayload, OrgImage, LinkSentResponse
 } from './models';
 
 /**
@@ -51,6 +51,10 @@ export class ApiService {
   }
   directoryOrg(id: number): Observable<{ org: PublicOrg }> {
     return this.http.get<{ org: PublicOrg }>('/api/directory/orgs/' + id, this.opts);
+  }
+  /** `token` = a console preview token: the org whatever its status, with preview_state. */
+  orgPreview(id: number, token: string): Observable<OrgPreview> {
+    return this.http.get<OrgPreview>('/api/directory/orgs/' + id + '?preview=' + encodeURIComponent(token), this.opts);
   }
 
   // Nonprofit portal

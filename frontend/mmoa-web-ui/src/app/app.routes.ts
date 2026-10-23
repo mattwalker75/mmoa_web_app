@@ -10,6 +10,8 @@ export const routes: Routes = [
   { path: 'raffles/:slug', loadComponent: () => import('./pages/raffle-detail.component').then(m => m.RaffleDetailComponent), title: 'Raffle · Mission Men of Anna' },
   { path: 'need-help', loadComponent: () => import('./pages/need-help.component').then(m => m.NeedHelpComponent), title: 'Need Help? · Mission Men of Anna' },
   { path: 'need-help/org/:id', loadComponent: () => import('./pages/org-profile.component').then(m => m.OrgProfileComponent), title: 'Need Help? · Mission Men of Anna' },
+  // The admin console's Preview of a nonprofit (?preview=<token>, any status).
+  { path: 'need-help/preview/:id', loadComponent: () => import('./pages/org-preview.component').then(m => m.OrgPreviewComponent), title: 'Preview · Need Help? · Mission Men of Anna' },
   { path: 'about', loadComponent: () => import('./pages/about.component').then(m => m.AboutComponent), title: 'About · Mission Men of Anna' },
   { path: 'partner', loadComponent: () => import('./pages/partner.component').then(m => m.PartnerComponent), title: 'Partner With Us · Mission Men of Anna' },
   { path: 'login', canActivate: [guestGuard], loadComponent: () => import('./pages/login.component').then(m => m.LoginComponent), title: 'Nonprofit login · Mission Men of Anna' },

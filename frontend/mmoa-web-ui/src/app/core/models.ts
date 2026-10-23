@@ -141,6 +141,15 @@ export interface PublicOrg {
   categories?: { slug: string; name: string }[];
 }
 
+/** GET /api/directory/orgs/:id?preview=<token> — the console's Preview of a
+ *  nonprofit whatever its status. preview_state is the first that applies. */
+export type OrgPreviewState = 'live' | 'unverified' | 'rejected' | 'unlisted' | 'hidden_by_mmoa';
+export interface OrgPreview {
+  org: PublicOrg;
+  preview: true;
+  preview_state: OrgPreviewState;
+}
+
 export interface SearchResponse {
   categories: { slug: string; name: string }[];
   category: { slug: string; name: string } | null;
@@ -180,6 +189,8 @@ export interface PortalPayload {
   org: PrivateOrg;
   preview: PublicOrg;
   isPublic: boolean;
+  /** MMoA hid the profile from the console (not in search until they show it again). */
+  adminHidden: boolean;
   account: { login_name: string; email: string; first_name: string; last_name: string } | null;
   options: { categories: Category[]; cities: City[]; publicFieldKeys: string[]; maxImages: number };
   ok?: boolean;

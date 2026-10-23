@@ -10,7 +10,7 @@
 //   GET /api/board
 //   GET /api/directory/meta
 //   GET /api/directory/search?category=<slug>&city=<name|any>&q=<text>
-//   GET /api/directory/orgs/:id
+//   GET /api/directory/orgs/:id[?preview=<token>]
 //
 // Visibility rules (the whole point of this file — keep them here):
 //   events   — status = 'published' only (a valid console preview token
@@ -20,7 +20,9 @@
 //   orgs     — verified AND is_listed = 1 AND NOT admin_hidden (orgs.isPublic), and
 //              then only the fields in public_fields (helpers/orgs.js). The
 //              EIN is never sent. Everything else is a 404 — indistinguishable
-//              from "no such org".
+//              from "no such org". (A valid console preview token —
+//              organizations.preview_token — shows any org, marked preview
+//              with a preview_state, for the console's Preview pop-up.)
 
 'use strict';
 
@@ -76,7 +78,7 @@ module.exports = function (db, appConfig) {
     const t = kind === 'raffle' ? { table: 'raffle_beneficiaries', id: 'raffle_id' } : { table: 'event_beneficiaries', id: 'event_id' };
     const rows = await db.allAsync(
       `SELECT b.${t.id} AS item_id, b.org_id, b.name, b.url, b.sort, o.name AS org_name,
-              o.verification_status, o.is_listed
+              o.verification_status, o.is_listed, o.admin_hidden
          FROM ${t.table} b LEFT JOIN organizations o ON o.org_id = b.org_id
         WHERE b.${t.id} IN (${ids.map(() => '?').join(',')})
         ORDER BY b.sort, b.beneficiary_id`, ids);
@@ -84,7 +86,7 @@ module.exports = function (db, appConfig) {
     for (const r of rows) {
       // Link to the directory profile only while that org is public; never
       // reveal an unverified/unlisted org's name unless the console typed it.
-      const orgPublic = r.org_id && orgsHelper.isPublic({ verification_status: r.verification_status, is_listed: r.is_listed });
+      const orgPublic = r.org_id && orgsHelper.isPublic({ verification_status: r.verification_status, is_listed: r.is_listed, admin_hidden: r.admin_hidden });
       const name = r.name || (orgPublic ? r.org_name : null);
       if (!name) continue;
       const item = { name, url: safeHttpUrl(r.url) };
@@ -141,7 +143,9 @@ module.exports = function (db, appConfig) {
     }
   });
 
-  // A console preview token (events.preview_token, ~30 min) matches?
+  // A console preview token (<table>.preview_token + preview_expires_at,
+  // ~30 min) matches? Shared by events, raffles and organizations — the
+  // three tables carry the same two columns.
   function validPreview(r, token) {
     if (!token || typeof token !== 'string' || !r.preview_token) return false;
     const a = Buffer.from(token), b = Buffer.from(String(r.preview_token));
@@ -431,16 +435,39 @@ module.exports = function (db, appConfig) {
     }
   });
 
+  /** The public profile for an org id, or null. With a valid console
+   *  preview token (organizations.preview_token) the org is returned
+   *  whatever its status — loaded straight from the DB, not the public
+   *  cache — as { org, preview: true, preview_state }, where preview_state
+   *  is the first that applies: live | unverified | rejected | unlisted
+   *  (the org unticked "list my organization") | hidden_by_mmoa. */
+  async function findDirectoryOrg(id, previewToken) {
+    if (!Number.isInteger(id) || id <= 0) return null;
+    if (previewToken) {
+      const [o] = await orgsHelper.loadOrgs(db, [id]);
+      if (o && validPreview(o, previewToken)) {
+        const state = orgsHelper.isPublic(o) ? 'live'
+          : o.verification_status === 'unverified' ? 'unverified'
+          : o.verification_status === 'rejected' ? 'rejected'
+          : Number(o.is_listed) !== 1 ? 'unlisted' : 'hidden_by_mmoa';
+        return { org: orgsHelper.publicOrg(o), preview: true, preview_state: state };
+      }
+      // A bad / expired token falls through to the normal rule: public or 404.
+    }
+    // Served from the same cache as search; the list holds public orgs
+    // only, and the visibility check is repeated here so an org that is
+    // not (or no longer) public is a 404 whatever the cache holds.
+    const hit = (await publicOrgs()).find(e => e.org.org_id === id);
+    if (!hit || !orgsHelper.isPublic(hit.org)) return null;
+    return { org: hit.pub };
+  }
+
   router.get('/directory/orgs/:id', async (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Not found' });
     try {
-      // Served from the same cache as search; the list holds public orgs
-      // only, and the visibility check is repeated here so an org that is
-      // not (or no longer) public is a 404 whatever the cache holds.
-      const hit = (await publicOrgs()).find(e => e.org.org_id === id);
-      if (!hit || !orgsHelper.isPublic(hit.org)) return res.status(404).json({ error: 'Not found' });
-      res.json({ org: hit.pub });
+      const found = await findDirectoryOrg(Number(req.params.id), req.query.preview);
+      if (!found) return res.status(404).json({ error: 'Not found' });
+      if (found.preview) res.set('Cache-Control', 'no-store');
+      res.json(found);
     } catch (err) {
       console.error('[api] directory org failed:', err);
       res.status(500).json({ error: 'Could not load this profile' });
@@ -556,9 +583,11 @@ module.exports = function (db, appConfig) {
     }
   });
 
-  // Exposed for app.js's Open Graph injection on /events/:slug + /raffles/:slug.
+  // Exposed for app.js's Open Graph injection on /events/:slug + /raffles/:slug
+  // and the console's preview pages (/need-help/preview/:id too).
   router.findPublishedEvent = findPublishedEvent;
   router.findPublishedRaffle = findPublishedRaffle;
+  router.findDirectoryOrg = findDirectoryOrg;
   return router;
 };
 

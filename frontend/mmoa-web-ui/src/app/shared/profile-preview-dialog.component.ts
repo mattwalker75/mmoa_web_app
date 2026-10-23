@@ -24,7 +24,8 @@ import { OrgViewComponent } from './org-view.component';
       <div class="pp-body stack" style="gap:26px">
         <p class="muted" style="margin:0">
           Based on your last <strong>saved</strong> changes — press "Save changes" first to see new edits here.
-          @if (!isPublic) { <br>Not visible to the public yet: your profile shows in "Need Help?" once MMoA verifies it and it's listed. }
+          @if (adminHidden) { <br>Not visible to the public: Mission Men of Anna has hidden your profile from the Need Help directory. It will show again once MMoA shows it. }
+          @else if (!isPublic) { <br>Not visible to the public yet: your profile shows in "Need Help?" once MMoA verifies it and it's listed. }
         </p>
         @if (loading) {
           <div class="loading" style="min-height:120px"><span class="spinner light big" role="status" aria-label="Loading preview"></span></div>
@@ -45,6 +46,8 @@ import { OrgViewComponent } from './org-view.component';
 export class ProfilePreviewDialogComponent {
   @Input() org: PublicOrg | null = null;
   @Input() isPublic = false;
+  /** MMoA hid the profile from the console — explains "not visible" even when verified + listed. */
+  @Input() adminHidden = false;
   @Input() loading = false;
   @Output() closed = new EventEmitter<void>();
   @ViewChild('dlg', { static: true }) dlg!: ElementRef<HTMLDialogElement>;
