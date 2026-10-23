@@ -89,8 +89,15 @@ export function normalizeUrl(v: string): string | null {
     const u = new URL(s);
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
     if (!/\.[a-z]{2,}$/i.test(u.hostname)) return null;
-    return u.toString();
+    const out = u.toString();
+    return out.length <= 500 ? out : null;
   } catch { return null; }
+}
+/** US ZIP: 5 digits, or ZIP+4. */
+export function normalizeZip(v: string): string | null {
+  const s = (v || '').trim();
+  if (!s) return '';
+  return /^\d{5}(-\d{4})?$/.test(s) ? s : null;
 }
 const FB_HOSTS = new Set(['facebook.com', 'www.facebook.com', 'm.facebook.com', 'web.facebook.com', 'fb.com', 'www.fb.com']);
 export function normalizeFacebook(v: string): string | null {
@@ -126,15 +133,34 @@ export function normalizeInstagram(v: string): string | null {
   return /^[A-Za-z0-9._]{1,30}$/.test(handle) ? `https://www.instagram.com/${handle}/` : null;
 }
 
+export const MAX_TAGS = 40, MAX_TAG_LEN = 50;
+/** Private search keywords: split on commas / new lines, tidy spaces, drop
+ *  repeats (any case) → 'food bank, groceries, snap'. null when there are
+ *  too many or one is too long. */
+export function normalizeSearchTags(v: string): string | null {
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const raw of (v || '').split(/[,\n]+/)) {
+    const t = raw.replace(/\s+/g, ' ').trim();
+    if (!t || seen.has(t.toLowerCase())) continue;
+    if (t.length > MAX_TAG_LEN) return null;
+    seen.add(t.toLowerCase());
+    tags.push(t);
+  }
+  return tags.length > MAX_TAGS ? null : tags.join(', ');
+}
+
 /** Field key → [normalizer, message shown when it can't be made valid]. */
 export const FIELD_RULES: Record<string, [(v: string) => string | null, string]> = {
   ein: [normalizeEin, 'EIN must be 9 digits, like 12-3456789.'],
   state: [normalizeState, 'Pick a US state from the list (for example TX).'],
+  zip: [normalizeZip, 'ZIP must be 5 digits, like 75409 (or ZIP+4).'],
   phone: [formatPhone, 'Enter a 10-digit phone number, like (972) 555-0100.'],
   phone_ext: [normalizeExt, 'Extension is up to 6 digits.'],
   public_email: [normalizeEmail, 'Enter an email like name@example.org.'],
   website_url: [normalizeUrl, 'Enter a web address like https://example.org.'],
   facebook_url: [normalizeFacebook, 'Enter your Facebook page, like facebook.com/yourpage.'],
   instagram_url: [normalizeInstagram, 'Enter your Instagram, like @yourname or instagram.com/yourname.'],
-  other_social_url: [normalizeUrl, 'Enter a web address like https://example.org.']
+  other_social_url: [normalizeUrl, 'Enter a web address like https://example.org.'],
+  search_tags: [normalizeSearchTags, `Search keywords: up to ${MAX_TAGS}, each up to ${MAX_TAG_LEN} characters.`]
 };

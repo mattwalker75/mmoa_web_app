@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -9,13 +9,14 @@ import { City, OrgContact, OrgImage, PortalPayload } from '../core/models';
 import { apiError } from '../core/errors';
 import { resizeImage } from '../core/image-resize';
 import { FIELD_RULES, US_STATES, formatPhone, maskInput, normalizeEmail, normalizeExt, typeEin, typeExt, typePhone } from '../core/formats';
+import { HasUnsavedChanges } from '../core/unsaved-changes.guard';
 import { ProfilePreviewDialogComponent } from '../shared/profile-preview-dialog.component';
 import { PasswordInputComponent } from '../shared/password-input.component';
 
 /** Profile fields with a Public/Hidden switch, in the order they appear. */
-const TEXT_ROWS: { key: string; label: string; vis: string; type?: string; placeholder?: string; auto?: string }[] = [
+const TEXT_ROWS: { key: string; label: string; vis: string; type?: string; placeholder?: string; auto?: string; max?: number }[] = [
   { key: 'phone', label: 'Phone', vis: 'phone', type: 'tel', placeholder: '(972) 555-0100', auto: 'tel' },
-  { key: 'public_email', label: 'Public email', vis: 'public_email', type: 'email', placeholder: 'help@example.org', auto: 'email' },
+  { key: 'public_email', label: 'Public email', vis: 'public_email', type: 'email', placeholder: 'help@example.org', auto: 'email', max: 255 },
   { key: 'website_url', label: 'Website', vis: 'website_url', placeholder: 'https://example.org', auto: 'url' },
   { key: 'facebook_url', label: 'Facebook', vis: 'facebook_url', placeholder: 'facebook.com/yourpage' },
   { key: 'instagram_url', label: 'Instagram', vis: 'instagram_url', placeholder: 'instagram.com/yourpage' },
@@ -31,6 +32,8 @@ const FIELD_NAMES: Record<string, string> = {
 
 type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'phone' | 'phone_ext' | 'public_email' |
   'website_url' | 'facebook_url' | 'instagram_url' | 'other_social_url' | 'description_md' | 'hours' | 'what_to_bring' | 'search_tags', string>;
+/** The editable model at one moment — see snapshot() / apply(). */
+type Snapshot = { f: FormModel; pub: string; listed: boolean; cats: string; cityIds: string; contacts: string };
 
 /**
  * /portal (NonprofitPortal mockup) — the signed-in nonprofit edits its
@@ -88,7 +91,7 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
 
           <form class="portal-main" (ngSubmit)="save()" novalidate>
             <!-- Organization -->
-            <section id="organization" class="card" aria-labelledby="h-org">
+            <section id="organization" class="card" aria-labelledby="h-org" (input)="markDirty()">
               <div class="result-head">
                 <h1 id="h-org">Organization</h1>
                 <span class="muted small">"Public" fields show on your profile and in search</span>
@@ -116,10 +119,11 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                     <div class="grid-3" style="margin-top:8px">
                       <input class="input" name="city" [(ngModel)]="f.city" maxlength="100" autocomplete="address-level2" placeholder="City" aria-label="City">
                       <input class="input" name="state" list="us-states" [(ngModel)]="f.state" (blur)="check('state')" maxlength="40" autocomplete="address-level1" placeholder="State" aria-label="State" [attr.aria-invalid]="!!errs()['state']" aria-describedby="p-state-err">
-                      <input class="input" name="zip" [(ngModel)]="f.zip" maxlength="10" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP" aria-label="ZIP code">
+                      <input class="input" name="zip" [(ngModel)]="f.zip" (blur)="check('zip')" maxlength="10" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP" aria-label="ZIP code" [attr.aria-invalid]="!!errs()['zip']" aria-describedby="p-zip-err">
                     </div>
                     <datalist id="us-states">@for (st of states; track st[0]) { <option [value]="st[0]">{{ st[1] }}</option> }</datalist>
                     @if (errs()['state']) { <div class="field-err" id="p-state-err" role="alert">{{ errs()['state'] }}</div> }
+                    @if (errs()['zip']) { <div class="field-err" id="p-zip-err" role="alert">{{ errs()['zip'] }}</div> }
                   </div>
                   <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('address')" (click)="flip('address')" [attr.aria-label]="'Address: ' + (isPub('address') ? 'public' : 'hidden')">{{ isPub('address') ? 'Public' : 'Hidden' }}</button>
                 </div>
@@ -128,7 +132,7 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                     <label [for]="'p-' + r.key">{{ r.label }}</label>
                     <div class="ctl">
                       <input class="input" [id]="'p-' + r.key" [name]="r.key" [type]="r.type || 'text'" [placeholder]="r.placeholder || ''"
-                        [attr.autocomplete]="r.auto || 'off'" maxlength="500" [attr.inputmode]="r.key === 'phone' ? 'tel' : null"
+                        [attr.autocomplete]="r.auto || 'off'" [attr.maxlength]="r.max || 500" [attr.inputmode]="r.key === 'phone' ? 'tel' : null"
                         [ngModel]="getF(r.key)" (ngModelChange)="setF(r.key, $event)" (input)="r.key === 'phone' && mask($event, typePhone)" (blur)="check(r.key)"
                         [attr.aria-invalid]="!!errs()[r.key]" [attr.aria-describedby]="errs()[r.key] ? 'p-err-' + r.key : null">
                       @if (r.key === 'phone') {
@@ -192,7 +196,7 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
             </section>
 
             <!-- Search keywords (private) -->
-            <section id="keywords" class="card" aria-labelledby="h-kw">
+            <section id="keywords" class="card" aria-labelledby="h-kw" (input)="markDirty()">
               <div class="sec-vis">
                 <h2 id="h-kw" style="margin:0">Search keywords</h2>
                 <span class="private-badge">Never shown publicly</span>
@@ -202,11 +206,12 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
                 <span class="muted">Separate them with commas — e.g. "groceries, food bank, SNAP, diapers, baby formula". They only help people find you in "Need Help?" search; nobody sees them.</span>
               </label>
               <textarea id="p-tags" class="textarea" name="search_tags" rows="3" maxlength="2000" [(ngModel)]="f.search_tags"
-                        (blur)="f.search_tags = tidyTags(f.search_tags)"></textarea>
+                        (blur)="check('search_tags')" [attr.aria-invalid]="!!errs()['search_tags']" aria-describedby="p-tags-err"></textarea>
+              @if (errs()['search_tags']) { <div class="field-err" id="p-tags-err" role="alert">{{ errs()['search_tags'] }}</div> }
             </section>
 
             <!-- What to bring -->
-            <section id="bring" class="card" aria-labelledby="h-bring">
+            <section id="bring" class="card" aria-labelledby="h-bring" (input)="markDirty()">
               <div class="sec-vis">
                 <h2 id="h-bring" style="margin:0">What to bring</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('what_to_bring')" (click)="flip('what_to_bring')" [attr.aria-label]="'What to bring: ' + (isPub('what_to_bring') ? 'public' : 'hidden')">{{ isPub('what_to_bring') ? 'Public' : 'Hidden' }}</button>
@@ -219,7 +224,7 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
             </section>
 
             <!-- Contacts -->
-            <section id="contacts" class="card" aria-labelledby="h-contacts">
+            <section id="contacts" class="card" aria-labelledby="h-contacts" (input)="markDirty()" (change)="markDirty()">
               <div class="sec-vis">
                 <h2 id="h-contacts" style="margin:0">Contacts</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('contacts')" (click)="flip('contacts')" [attr.aria-label]="'Contacts: ' + (isPub('contacts') ? 'public' : 'hidden')">{{ isPub('contacts') ? 'Public' : 'Hidden' }}</button>
@@ -227,7 +232,8 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
               <p class="muted">People at your organization. Only contacts marked "Show publicly" appear on your profile.</p>
               @for (c of contacts; track $index; let i = $index) {
                 <div class="contact-row" role="group" [attr.aria-label]="'Contact ' + (i + 1)">
-                  <div class="field c-name"><label [for]="'c-name-' + i">Name</label><input class="input" [id]="'c-name-' + i" [name]="'c-name-' + i" maxlength="200" [(ngModel)]="c.name"></div>
+                  <div class="field c-name"><label [for]="'c-name-' + i">Name</label><input class="input" [id]="'c-name-' + i" [name]="'c-name-' + i" maxlength="200" [(ngModel)]="c.name" (blur)="checkContact(i, 'name')" [attr.aria-invalid]="!!errs()['c-name-' + i]">
+                    @if (errs()['c-name-' + i]) { <div class="field-err" role="alert">{{ errs()['c-name-' + i] }}</div> }</div>
                   <div class="field c-role"><label [for]="'c-role-' + i">Role</label><input class="input" [id]="'c-role-' + i" [name]="'c-role-' + i" maxlength="200" [(ngModel)]="c.role"></div>
                   <div class="field c-email"><label [for]="'c-email-' + i">Email</label><input class="input" type="email" [id]="'c-email-' + i" [name]="'c-email-' + i" maxlength="255" [(ngModel)]="c.email" (blur)="checkContact(i, 'email')" [attr.aria-invalid]="!!errs()['c-email-' + i]">
                     @if (errs()['c-email-' + i]) { <div class="field-err" role="alert">{{ errs()['c-email-' + i] }}</div> }</div>
@@ -279,7 +285,7 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
             <!-- Visibility -->
             <section id="visibility" class="card" aria-labelledby="h-vis">
               <h2 id="h-vis">Visibility</h2>
-              <label class="switch"><input type="checkbox" name="is_listed" [checked]="listed()" (change)="listed.set(!listed())"> List my organization in "Need Help?"</label>
+              <label class="switch"><input type="checkbox" name="is_listed" [checked]="listed()" (change)="listed.set(!listed()); markDirty()"> List my organization in "Need Help?"</label>
               <p class="muted" style="margin-top:8px">Turn this off to hide your whole profile from search for a while. Your organization's name is always public when listed; your EIN and your login email are never public.</p>
               <p class="soft" style="margin:0"><strong>Public now:</strong> {{ publicSummary() || 'Name only' }}</p>
               @if (hiddenSummary()) { <p class="muted" style="margin:4px 0 0"><strong>Hidden:</strong> {{ hiddenSummary() }}</p> }
@@ -330,7 +336,7 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
     }
   `
 })
-export class PortalComponent {
+export class PortalComponent implements HasUnsavedChanges {
   private api = inject(ApiService);
   private auth = inject(AuthService);
   private route = inject(ActivatedRoute);
@@ -358,6 +364,8 @@ export class PortalComponent {
   cityIds = signal<number[]>([]);
   contacts: OrgContact[] = [];
   images = signal<OrgImage[]>([]);
+  /** Edits not yet saved with "Save changes" (photos save on their own). */
+  dirty = signal(false);
 
   saving = signal(false);
   saveMsg = signal('');
@@ -379,8 +387,18 @@ export class PortalComponent {
 
   constructor() {
     this.route.fragment.subscribe(fr => { if (fr) this.frag.set(fr); });
+    // Unsaved edits: the route guard asks before an in-app navigation; this
+    // covers a reload / closed tab.
+    const warn = (e: BeforeUnloadEvent) => { if (this.hasUnsavedChanges()) e.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('beforeunload', warn));
     this.load();
   }
+
+  markDirty() { this.dirty.set(true); }
+  /** For the route guard. Once the session is gone (a 401 sent us to the
+   *  login page) nothing can be saved anyway, so don't ask. */
+  hasUnsavedChanges() { return this.dirty() && this.auth.isLoggedIn(); }
 
   private blankForm(): FormModel {
     return { name: '', ein: '', address_line1: '', address_line2: '', city: '', state: 'TX', zip: '', phone: '', phone_ext: '', public_email: '',
@@ -395,29 +413,37 @@ export class PortalComponent {
     }
   }
 
-  /** Copy a server payload into the editable model. */
-  private apply(p: PortalPayload) {
+  /** The editable model as it is right now (lists as JSON, for comparing). */
+  private snapshot(): Snapshot {
+    return { f: { ...this.f }, pub: JSON.stringify(this.pub()), listed: this.listed(), cats: JSON.stringify(this.cats()),
+      cityIds: JSON.stringify(this.cityIds()), contacts: JSON.stringify(this.contacts) };
+  }
+
+  /** Copy a server payload into the editable model. With `since` (the model
+   *  as it was when a save started) anything edited during the round-trip is
+   *  kept — and stays unsaved — instead of being overwritten by the reply. */
+  private apply(p: PortalPayload, since?: Snapshot) {
     const o = p.org;
     const f = this.blankForm();
     for (const k of Object.keys(f) as (keyof FormModel)[]) f[k] = (o as unknown as Record<string, string>)[k] ?? '';
     if (!f.state) f.state = 'TX';
+    let kept = false;
+    // Edited meanwhile = differs from the snapshot AND from what the server sent back.
+    const edited = <T>(now: T, was: T, saved: T) => { const yes = !!since && now !== was && now !== saved; kept ||= yes; return yes; };
+    for (const k of Object.keys(f) as (keyof FormModel)[]) if (edited(this.f[k], since?.f[k], f[k])) f[k] = this.f[k];
     this.errs.set({});
     this.f = f;
-    this.pub.set([...o.public_fields]);
-    this.listed.set(o.is_listed);
-    this.cats.set([...o.categories]);
-    this.cityIds.set([...o.city_ids]);
-    this.contacts = o.contacts.map(c => ({ ...c }));
+    const pub = [...o.public_fields], cats = [...o.categories], cityIds = [...o.city_ids], contacts = o.contacts.map(c => ({ ...c }));
+    if (!edited(JSON.stringify(this.pub()), since?.pub, JSON.stringify(pub))) this.pub.set(pub);
+    if (!edited(this.listed(), since?.listed, o.is_listed)) this.listed.set(o.is_listed);
+    if (!edited(JSON.stringify(this.cats()), since?.cats, JSON.stringify(cats))) this.cats.set(cats);
+    if (!edited(JSON.stringify(this.cityIds()), since?.cityIds, JSON.stringify(cityIds))) this.cityIds.set(cityIds);
+    if (!edited(JSON.stringify(this.contacts), since?.contacts, JSON.stringify(contacts))) this.contacts = contacts;
     this.images.set(o.images);
     this.data.set(p);
+    this.dirty.set(kept);
   }
 
-  /** Same clean-up the server does: commas between, no blanks or repeats. */
-  tidyTags(v: string): string {
-    const seen = new Set<string>();
-    return (v || '').split(/[,\n]+/).map(t => t.replace(/\s+/g, ' ').trim())
-      .filter(t => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).join(', ');
-  }
   getF(k: string): string { return this.f[k as keyof FormModel]; }
   setF(k: string, v: string) { this.f[k as keyof FormModel] = k === 'phone' ? typePhone(v) : v; }
 
@@ -440,12 +466,18 @@ export class PortalComponent {
     this.setErr(key, '');
     return true;
   }
-  checkContact(i: number, kind: 'email' | 'phone'): boolean {
+  checkContact(i: number, kind: 'name' | 'email' | 'phone'): boolean {
     const c = this.contacts[i];
     if (!c) return true;
+    const key = `c-${kind}-${i}`;
+    if (kind === 'name') {
+      // Server rule: a row with anything in it needs a name (an all-blank row is simply dropped).
+      const missing = !(c.name || '').trim() && !!((c.role || '').trim() || (c.email || '').trim() || (c.phone || '').trim());
+      this.setErr(key, missing ? 'Each contact needs a name.' : '');
+      return !missing;
+    }
     if (kind === 'phone') c.phone_ext = normalizeExt(c.phone_ext || '') ?? '';
     const v = kind === 'email' ? normalizeEmail(c.email) : formatPhone(c.phone);
-    const key = `c-${kind}-${i}`;
     if (v === null) {
       this.setErr(key, kind === 'email' ? 'Enter an email like name@example.org.' : 'Enter a 10-digit phone number, like (972) 555-0100.');
       return false;
@@ -458,17 +490,18 @@ export class PortalComponent {
   private checkAll(): boolean {
     let ok = true;
     for (const k of Object.keys(FIELD_RULES)) ok = this.check(k) && ok;
-    this.contacts.forEach((_, i) => { ok = this.checkContact(i, 'email') && ok; ok = this.checkContact(i, 'phone') && ok; });
+    this.contacts.forEach((_, i) => { ok = this.checkContact(i, 'name') && ok; ok = this.checkContact(i, 'email') && ok; ok = this.checkContact(i, 'phone') && ok; });
     if (!ok) setTimeout(() => (document.querySelector('.portal-main [aria-invalid="true"]') as HTMLElement | null)?.focus());
     return ok;
   }
   isPub(k: string) { return this.pub().includes(k); }
-  flip(k: string) { this.pub.set(this.isPub(k) ? this.pub().filter(x => x !== k) : [...this.pub(), k]); }
-  toggleCat(slug: string) { this.cats.set(this.cats().includes(slug) ? this.cats().filter(s => s !== slug) : [...this.cats(), slug]); }
-  addCity(id: string) { const n = Number(id); if (n && !this.cityIds().includes(n)) this.cityIds.set([...this.cityIds(), n]); }
-  removeCity(id: number) { this.cityIds.set(this.cityIds().filter(x => x !== id)); }
+  flip(k: string) { this.pub.set(this.isPub(k) ? this.pub().filter(x => x !== k) : [...this.pub(), k]); this.markDirty(); }
+  toggleCat(slug: string) { this.cats.set(this.cats().includes(slug) ? this.cats().filter(s => s !== slug) : [...this.cats(), slug]); this.markDirty(); }
+  addCity(id: string) { const n = Number(id); if (n && !this.cityIds().includes(n)) { this.cityIds.set([...this.cityIds(), n]); this.markDirty(); } }
+  removeCity(id: number) { this.cityIds.set(this.cityIds().filter(x => x !== id)); this.markDirty(); }
+  /** A blank row saves nothing, so adding one isn't an unsaved change yet. */
   addContact() { this.contacts = [...this.contacts, { name: '', role: '', email: '', phone: '', phone_ext: '', is_public: false }]; }
-  removeContact(i: number) { this.contacts = this.contacts.filter((_, j) => j !== i); this.errs.update(e => Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('c-')))); }
+  removeContact(i: number) { this.contacts = this.contacts.filter((_, j) => j !== i); this.errs.update(e => Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('c-')))); this.markDirty(); }
   minLen() { return this.auth.config()?.passwordMinLength || 8; }
 
   async save() {
@@ -485,10 +518,11 @@ export class PortalComponent {
       city_ids: this.cityIds()
     };
     if (this.status() !== 'unverified') delete body['ein'];
+    const since = this.snapshot();
     this.saving.set(true);
     try {
       const res = await firstValueFrom(this.api.savePortalOrg(body));
-      this.apply(res);
+      this.apply(res, since);
       this.saveMsg.set(res.message || 'Saved.');
       setTimeout(() => this.saveMsg.set(''), 6000);
     } catch (err) {

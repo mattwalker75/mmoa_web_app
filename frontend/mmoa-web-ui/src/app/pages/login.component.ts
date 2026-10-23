@@ -73,8 +73,9 @@ export class LoginComponent {
       const redirect = this.route.snapshot.queryParamMap.get('redirect');
       // Only honor same-origin absolute paths. Reject protocol-relative
       // ("//evil.com") and backslash variants so ?redirect= can't bounce the
-      // user to an external site after login (open redirect).
-      const safe = !!redirect && redirect.startsWith('/') && redirect[1] !== '/' && redirect[1] !== '\\';
+      // user to an external site after login (open redirect) — and /login
+      // itself, whose guard would end the brand-new session on arrival.
+      const safe = !!redirect && redirect.startsWith('/') && redirect[1] !== '/' && redirect[1] !== '\\' && !/^\/login(?=$|[/?#])/.test(redirect);
       this.router.navigateByUrl(safe ? redirect! : '/portal');
     } catch (err) {
       if (apiCode(err) === 'unverified') {

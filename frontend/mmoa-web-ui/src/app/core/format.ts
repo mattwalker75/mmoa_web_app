@@ -46,15 +46,39 @@ export function googleCalendarUrl(title: string, startIso: string, endIso: strin
   return 'https://calendar.google.com/calendar/render?' + p.toString();
 }
 
+/** RFC 5545 line folding: no line over 75 octets; continuation lines start
+ *  with a space. Splits at character boundaries, so a multi-byte character
+ *  is never cut in half (a line can then end a few octets short). */
+function icsFold(line: string): string {
+  const enc = new TextEncoder();
+  const out: string[] = [];
+  let cur = '', len = 0;
+  for (const ch of line) {
+    const n = enc.encode(ch).length;
+    if (len + n > 75 - (out.length ? 1 : 0)) { out.push(cur); cur = ''; len = 0; }
+    cur += ch; len += n;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+
 /** A one-event .ics file (Apple Calendar / Outlook) as a Blob. */
 export function icsBlob(uid: string, title: string, startIso: string, endIso: string | null, location: string, url: string): Blob {
   const s = new Date(startIso);
   const e = endIso ? new Date(endIso) : new Date(s.getTime() + 2 * 3600 * 1000);
-  const esc = (v: string) => v.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  const esc = (v: string) => v.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   const body = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mission Men of Anna//Events//EN', 'BEGIN:VEVENT',
     `UID:${uid}@missionmenofanna`, `DTSTAMP:${icsStamp(new Date())}`, `DTSTART:${icsStamp(s)}`, `DTEND:${icsStamp(e)}`,
     `SUMMARY:${esc(title)}`, `LOCATION:${esc(location)}`, `URL:${url}`, 'END:VEVENT', 'END:VCALENDAR'
-  ].join('\r\n');
+  ].map(icsFold).join('\r\n');
   return new Blob([body], { type: 'text/calendar;charset=utf-8' });
+}
+
+/** This page's address for sharing / calendar links — without the console's
+ *  ?preview= token, which must never leave the admin's browser. */
+export function pageUrl(): string {
+  const u = new URL(window.location.href);
+  u.searchParams.delete('preview');
+  return u.toString();
 }

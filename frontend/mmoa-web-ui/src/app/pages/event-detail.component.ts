@@ -5,7 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { EventItem } from '../core/models';
-import { longDate, timeRange, googleCalendarUrl, icsBlob } from '../core/format';
+import { longDate, timeRange, googleCalendarUrl, icsBlob, pageUrl } from '../core/format';
 import { FlyerDialogComponent } from '../shared/flyer-dialog.component';
 import { ShareButtonsComponent } from '../shared/share-buttons.component';
 
@@ -124,20 +124,23 @@ export class EventDetailComponent {
   private title = inject(Title);
   ev = signal<EventItem | null>(null);
   state = signal<'loading' | 'ok' | 'missing' | 'error'>('loading');
+  private seq = 0;
 
   constructor() {
     this.route.paramMap.subscribe(p => this.load(p.get('slug') || ''));
   }
 
   private async load(slug: string) {
+    const mine = ++this.seq;
     this.state.set('loading');
     try {
       const res = await firstValueFrom(this.api.event(slug, this.route.snapshot.queryParamMap.get('preview')));
+      if (mine !== this.seq) return; // a newer load started
       this.ev.set(res.event);
       this.title.setTitle(`${res.event.title} · Mission Men of Anna`);
       this.state.set('ok');
     } catch (err) {
-      this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
+      if (mine === this.seq) this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
     }
   }
 
@@ -145,10 +148,10 @@ export class EventDetailComponent {
   hours(e: EventItem) { return timeRange(e.starts_at, e.ends_at); }
   place(e: EventItem) { return [e.venue_name, e.address, e.city].filter(Boolean).join(', '); }
   addressLine(e: EventItem) { return [e.address, e.city ? `${e.city}, TX` : ''].filter(Boolean).join(', '); }
-  gcal(e: EventItem) { return googleCalendarUrl(e.title, e.starts_at!, e.ends_at, this.place(e), window.location.href); }
+  gcal(e: EventItem) { return googleCalendarUrl(e.title, e.starts_at!, e.ends_at, this.place(e), pageUrl()); }
 
   downloadIcs(e: EventItem) {
-    const blob = icsBlob('event-' + e.event_id, e.title, e.starts_at!, e.ends_at, this.place(e), window.location.href);
+    const blob = icsBlob('event-' + e.event_id, e.title, e.starts_at!, e.ends_at, this.place(e), pageUrl());
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = e.slug + '.ics';

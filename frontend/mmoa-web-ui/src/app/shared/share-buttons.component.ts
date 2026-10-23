@@ -1,4 +1,5 @@
 import { Component, Input, signal } from '@angular/core';
+import { pageUrl } from '../core/format';
 
 /** "Share this event:" — Facebook share dialog link + copy-link button. */
 @Component({
@@ -19,7 +20,7 @@ export class ShareButtonsComponent {
   @Input() url = '';
   copied = signal('');
 
-  private target(): string { return this.url || window.location.href; }
+  private target(): string { return this.url || pageUrl(); }
   facebookUrl(): string { return 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(this.target()); }
 
   async copy() {

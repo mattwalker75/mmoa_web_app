@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth.guard';
+import { unsavedChangesGuard } from './core/unsaved-changes.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home.component').then(m => m.HomeComponent), title: 'Mission Men of Anna' },
@@ -17,7 +18,7 @@ export const routes: Routes = [
   { path: 'verify-pending', loadComponent: () => import('./pages/verify-pending.component').then(m => m.VerifyPendingComponent), title: 'Check your email · Mission Men of Anna' },
   { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password.component').then(m => m.ForgotPasswordComponent), title: 'Reset password · Mission Men of Anna' },
   { path: 'reset-password', loadComponent: () => import('./pages/reset-password.component').then(m => m.ResetPasswordComponent), title: 'Choose a new password · Mission Men of Anna' },
-  { path: 'portal', canActivate: [authGuard], loadComponent: () => import('./pages/portal.component').then(m => m.PortalComponent), title: 'My profile · Mission Men of Anna' },
+  { path: 'portal', canActivate: [authGuard], canDeactivate: [unsavedChangesGuard], loadComponent: () => import('./pages/portal.component').then(m => m.PortalComponent), title: 'My profile · Mission Men of Anna' },
   // v1 member home → the nonprofit portal.
   { path: 'dashboard', redirectTo: 'portal' },
   { path: '**', loadComponent: () => import('./pages/not-found.component').then(m => m.NotFoundComponent), title: 'Page not found · Mission Men of Anna' }

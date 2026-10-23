@@ -57,6 +57,7 @@ export class App {
     const path = (e.routerEvent instanceof NavigationEnd ? e.routerEvent.urlAfterRedirects : this.router.url).split(/[?#]/)[0];
     const samePage = path === this.lastPath;
     this.lastPath = path;
+    this.stopRestore?.(); // a new navigation supersedes any restore loop still running
     if (e.position) this.restore(e.position);
     else if (e.anchor) this.scroller.scrollToAnchor(e.anchor);
     else if (!samePage) this.jump([0, 0]);
@@ -68,15 +69,21 @@ export class App {
   /** Back/Forward: pages load their lists a moment after they appear, so the
    *  page may still be too short to reach the old spot — keep trying for up
    *  to ~1.5s, and stop as soon as the visitor scrolls or types themselves. */
+  private stopRestore?: () => void; // cancels the running loop + detaches its listeners
   private restore(pos: [number, number]) {
-    let tries = 0, stopped = false;
-    const stop = () => { stopped = true; };
-    const opts = { once: true, passive: true } as const;
-    ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stop, opts));
+    let tries = 0, timer: ReturnType<typeof setTimeout> | undefined;
+    const events = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+    const stop = () => {
+      clearTimeout(timer);
+      events.forEach(t => window.removeEventListener(t, stop));
+      this.stopRestore = undefined;
+    };
+    this.stopRestore = stop;
+    events.forEach(t => window.addEventListener(t, stop, { passive: true }));
     const attempt = () => {
-      if (stopped) return;
       this.jump(pos);
-      if (Math.abs(window.scrollY - pos[1]) > 2 && ++tries < 15) setTimeout(attempt, 100);
+      if (Math.abs(window.scrollY - pos[1]) > 2 && ++tries < 15) timer = setTimeout(attempt, 100);
+      else stop();
     };
     attempt();
   }

@@ -35,21 +35,24 @@ export class OrgProfileComponent {
   S = S;
   org = signal<PublicOrg | null>(null);
   state = signal<'loading' | 'ok' | 'missing' | 'error'>('loading');
+  private seq = 0;
 
   constructor() {
     this.route.paramMap.subscribe(p => this.load(Number(p.get('id'))));
   }
 
   private async load(id: number) {
+    const mine = ++this.seq;
     this.state.set('loading');
     if (!Number.isInteger(id) || id <= 0) { this.state.set('missing'); return; }
     try {
       const res = await firstValueFrom(this.api.directoryOrg(id));
+      if (mine !== this.seq) return; // a newer load started
       this.org.set(res.org);
       this.title.setTitle(`${res.org.name} · Need Help? · Mission Men of Anna`);
       this.state.set('ok');
     } catch (err) {
-      this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
+      if (mine === this.seq) this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
     }
   }
 }

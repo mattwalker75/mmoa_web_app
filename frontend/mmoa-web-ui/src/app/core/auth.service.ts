@@ -42,7 +42,11 @@ export class AuthService {
     } catch { /* keep what we have */ }
   }
 
+  /** Ends the session. The local state is cleared no matter what the API
+   *  says (a failed call most likely means the session was already gone),
+   *  so callers can carry on to the next page without catching. */
   async logout(): Promise<void> {
-    try { await firstValueFrom(this.api.logout()); } finally { this.user.set(null); }
+    try { await firstValueFrom(this.api.logout()); } catch { /* signed out locally regardless */ }
+    this.user.set(null);
   }
 }

@@ -26,6 +26,8 @@ import { RouteLinksDirective } from '../shared/route-links.directive';
       </div>
       @if (loading()) {
         <div class="loading"><span class="spinner light big" role="status" aria-label="Loading events"></span></div>
+      } @else if (error()) {
+        <div class="alert alert-error" role="alert">We couldn't load events just now. Please try again later.</div>
       } @else if (events().length) {
         <div class="card-grid">
           @for (e of events(); track e.event_id) { <app-event-card [ev]="e" /> }
@@ -100,6 +102,7 @@ export class HomeComponent {
   events = signal<EventItem[]>([]);
   raffle = signal<Raffle | null>(null);
   loading = signal(true);
+  error = signal(false);
   orgs = signal<PublicOrg[]>([]);
   showNonprofits = computed(() => this.orgs().length > 0);
   values = CORE_VALUES;
@@ -113,7 +116,7 @@ export class HomeComponent {
       firstValueFrom(this.api.events('upcoming')),
       firstValueFrom(this.api.raffles('current'))
     ]);
-    if (ev.status === 'fulfilled') this.events.set(ev.value.events.slice(0, 3));
+    if (ev.status === 'fulfilled') this.events.set(ev.value.events.slice(0, 3)); else this.error.set(true);
     if (ra.status === 'fulfilled') this.raffle.set(ra.value.raffles[0] || null);
     this.loading.set(false);
     try { this.orgs.set((await firstValueFrom(this.api.directorySearch({}))).results); }

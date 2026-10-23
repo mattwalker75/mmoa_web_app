@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -41,6 +41,7 @@ import { OrgCardComponent } from '../shared/org-card.component';
             <button type="button" class="btn btn-outline" [disabled]="!selected().length" (click)="clearAll()">{{ S.clearAll }}</button>
           </div>
         </div>
+        @if (metaError()) { <div class="empty" role="alert">{{ S.loadError }}</div> }
         <div class="cat-grid" role="group" aria-labelledby="need-label">
           @for (c of categories(); track c.slug) {
             <button type="button" class="cat-tile" [attr.aria-pressed]="isOn(c.slug)" (click)="toggle(c.slug)">{{ c.name }}</button>
@@ -97,9 +98,14 @@ export class NeedHelpComponent {
   summary = signal('');
   loading = signal(true);
   error = signal(false);
+  metaError = signal(false);
   private seq = 0;
+  private destroyed = false;
 
   constructor() {
+    // The typing debounce must not outlive the page: its navigate() would
+    // pull the visitor back here from wherever they went next.
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; clearTimeout(this.typing); });
     this.loadMeta();
     this.route.queryParamMap.subscribe(p => {
       this.selected.set((p.get('category') || '').split(',').map(s => s.trim()).filter(Boolean));
@@ -117,7 +123,7 @@ export class NeedHelpComponent {
       const m = await firstValueFrom(this.api.directoryMeta());
       this.categories.set(m.categories);
       this.cities.set(m.cities);
-    } catch { this.error.set(true); }
+    } catch { this.metaError.set(true); }
   }
 
   isOn(slug: string) { return this.selected().includes(slug); }
@@ -148,6 +154,7 @@ export class NeedHelpComponent {
    *  `typing` replaces the current history entry (one entry per search, not
    *  per keystroke). */
   submit(typing = false) {
+    if (this.destroyed) return;
     if (!typing) clearTimeout(this.typing);
     const queryParams: Record<string, string | null> = {
       category: this.selected().length ? this.selected().join(',') : null,

@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { DevLinkService } from '../core/dev-link.service';
 import { DevLinkComponent } from '../shared/dev-link.component';
+import { apiError } from '../core/errors';
 
 @Component({
   selector: 'app-verify-pending',
@@ -24,6 +25,7 @@ import { DevLinkComponent } from '../shared/dev-link.component';
         <app-dev-link [link]="devLink()" action="verify your email" />
 
         @if (msg()) { <div class="alert alert-success">{{ msg() }}</div> }
+        @if (err()) { <div class="alert alert-error" role="alert">{{ err() }}</div> }
 
         <div class="btn-row" style="justify-content:center;margin-top:8px">
           <a class="btn btn-primary" routerLink="/login">Go to sign in</a>
@@ -44,16 +46,18 @@ export class VerifyPendingComponent {
   devLink = signal<string | null>(inject(DevLinkService).take());
   sending = signal(false);
   msg = signal('');
+  err = signal('');
 
   async resend() {
     if (!this.email() || this.sending()) return;
     this.sending.set(true);
+    this.msg.set(''); this.err.set('');
     try {
       const res = await firstValueFrom(this.api.resendVerification(this.email()));
       this.msg.set(res.message);
       if (res.devLink) this.devLink.set(res.devLink);
-    } catch {
-      this.msg.set('');
+    } catch (e) {
+      this.err.set(apiError(e, "We couldn't send the email just now. Please try again in a moment."));
     } finally {
       this.sending.set(false);
     }

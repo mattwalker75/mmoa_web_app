@@ -129,6 +129,7 @@ export class RaffleDetailComponent {
   sel = signal(0);
   state = signal<'loading' | 'ok' | 'missing' | 'error'>('loading');
   date = mediumDate;
+  private seq = 0;
 
   /** The big photo: the selected prize image, else the flyer. */
   main = computed(() => {
@@ -144,15 +145,17 @@ export class RaffleDetailComponent {
   }
 
   private async load(slug: string) {
+    const mine = ++this.seq;
     this.state.set('loading');
     this.sel.set(0);
     try {
       const res = await firstValueFrom(this.api.raffle(slug, this.route.snapshot.queryParamMap.get('preview')));
+      if (mine !== this.seq) return; // a newer load started
       this.r.set(res.raffle);
       this.title.setTitle(`${res.raffle.title} · Mission Men of Anna`);
       this.state.set('ok');
     } catch (err) {
-      this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
+      if (mine === this.seq) this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
     }
   }
 
