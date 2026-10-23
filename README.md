@@ -75,6 +75,10 @@ node scripts/seed-sample-data.js
 # unit tests (markdown-lite renderer + XSS cases)
 npm test
 
+# known vulnerabilities in the production dependencies (START_APP.sh also runs
+# a high/critical-only check at every boot and prints a WARNING, never blocking)
+npm run audit
+
 # local git guards that keep real keys out of commits
 ./scripts/git-hooks/install.sh
 ```

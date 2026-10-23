@@ -77,7 +77,7 @@ Rules worth knowing:
 
 | Script | Behavior |
 |---|---|
-| `./START_APP.sh` | `cd`s to the repo; `npm install` if `node_modules/` is missing; `npm run build:frontend` if `frontend/mmoa-web-ui/dist` is missing; refuses to start a second copy; launches `nohup node app.js >> logs/app.log 2>&1 &`, writes `tmp/app.pid`, and verifies the process stayed up. `--force-rebuild` reinstalls + rebuilds first. |
+| `./START_APP.sh` | `cd`s to the repo; `npm install` if `node_modules/` is missing; `npm run build:frontend` if `frontend/mmoa-web-ui/dist` is missing; refuses to start a second copy; runs a dependency check (`npm audit --omit=dev --audit-level=high`, 30 s timeout, WARNING block on findings, skipped when offline — never blocks); launches `nohup node app.js >> logs/app.log 2>&1 &`, writes `tmp/app.pid`, and verifies the process stayed up. `--force-rebuild` reinstalls + rebuilds first. |
 | `./STOP_APP.sh` | Stops the PID in `tmp/app.pid` **and** whatever listens on the configured port (default 3004): SIGTERM, up to 10 s grace, then SIGKILL. Exit 0 if already stopped. |
 | `./RESTART_APP.sh` | STOP, 2 s pause, START (options forwarded to START). |
 | `./SETUP_SQLLITE_DB.sh` | Deletes and rebuilds `mmoa_web_app.db` from `setup_sqlite_db.sql`. |
@@ -130,6 +130,11 @@ content-hashed so this is safe, but hard-reload if a CSS change doesn't show.
 
 ## Tests and sample data
 
+- `npm run audit` — `npm audit --omit=dev`: known vulnerabilities in the
+  production dependencies, all severities. `START_APP.sh` runs the
+  high/critical-only version at every boot and prints a WARNING block (the app
+  still starts); run this one by hand now and then, and `npm audit fix --omit=dev`
+  (then `npm test` + a restart) to update.
 - `npm test` — unit tests (Node's built-in runner): the markdown-lite renderer,
   including XSS strings (`<script>`, `javascript:` / `data:` links, attribute
   break-outs).

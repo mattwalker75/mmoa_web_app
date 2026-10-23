@@ -21,6 +21,7 @@ const multer = require('multer');
 const { sqlTime } = require('../helpers/sqlTime');
 const uploads = require('../helpers/uploads');
 const orgsHelper = require('../helpers/orgs');
+const orgCache = require('../helpers/orgCache');
 
 const fmt = require('../helpers/formats');
 const ZIP_RE = /^\d{5}(-\d{4})?$/;
@@ -242,6 +243,7 @@ module.exports = function (db, appConfig, { requireVerified }) {
           for (const id of cityIds) await tx.runAsync('INSERT INTO org_cities (org_id, city_id) VALUES (?, ?)', [orgId, id]);
         }
       });
+      orgCache.invalidate(); // the public directory reflects the save on its next request
       res.json({ ok: true, message: 'Your profile has been saved.', ...(await portalPayload(req, orgId)) });
     } catch (err) { fail(res, err, 'save'); }
   });
@@ -291,6 +293,7 @@ module.exports = function (db, appConfig, { requireVerified }) {
         await tx.runAsync('UPDATE organizations SET updated_at = ? WHERE org_id = ?', [sqlTime(Date.now()), orgId]);
         return { image_id: ins.lastID, url: uploads.uploadUrl(saved.path), alt, sort };
       });
+      orgCache.invalidate();
       res.status(201).json({ ok: true, image, images: await imagesPayload(orgId) });
     } catch (err) {
       if (saved) uploads.deleteImage(saved.path);
@@ -316,6 +319,7 @@ module.exports = function (db, appConfig, { requireVerified }) {
           await tx.runAsync('UPDATE org_images SET alt = ? WHERE image_id = ? AND org_id = ?', [String(v || '').trim().slice(0, 300) || null, id, orgId]);
         }
       });
+      orgCache.invalidate();
       res.json({ ok: true, images: await imagesPayload(orgId) });
     } catch (err) { fail(res, err, 'image order'); }
   });
@@ -329,6 +333,7 @@ module.exports = function (db, appConfig, { requireVerified }) {
       if (!row) return res.status(404).json({ error: 'Photo not found' });
       await db.runAsync('DELETE FROM org_images WHERE image_id = ? AND org_id = ?', [id, orgId]);
       await uploads.deleteImage(row.path); // best effort
+      orgCache.invalidate();
       res.json({ ok: true, images: await imagesPayload(orgId) });
     } catch (err) { fail(res, err, 'image delete'); }
   });

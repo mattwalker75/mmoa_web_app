@@ -32,6 +32,7 @@ const { parseSqlTimeMs, isoOrNull } = require('../helpers/sqlTime');
 const { renderMarkdownLite } = require('../helpers/markdownLite');
 const { uploadUrl } = require('../helpers/uploads');
 const orgsHelper = require('../helpers/orgs');
+const orgCache = require('../helpers/orgCache');
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UPCOMING_GRACE_MS = 12 * 3600 * 1000; // an event stays "upcoming" until 12 h after it starts
@@ -336,11 +337,18 @@ module.exports = function (db, appConfig) {
     }
   });
 
+  // Every public org, loaded with its children and already shaped for the
+  // directory ({ org: raw row, pub: publicOrg(org) }), cached for a few
+  // seconds in helpers/orgCache.js (invalidated by the portal's writes; the
+  // admin console's edits land within the TTL). The cached objects are
+  // shared between requests — callers must not mutate them.
   async function loadPublicOrgs() {
     const ids = await db.allAsync(
       "SELECT org_id FROM organizations WHERE verification_status = 'verified' AND is_listed = 1");
-    return (await orgsHelper.loadOrgs(db, ids.map(r => r.org_id))).filter(orgsHelper.isPublic);
+    return (await orgsHelper.loadOrgs(db, ids.map(r => r.org_id))).filter(orgsHelper.isPublic)
+      .map(o => ({ org: o, pub: orgsHelper.publicOrg(o) }));
   }
+  const publicOrgs = () => orgCache.getPublicOrgs(loadPublicOrgs);
 
   router.get('/directory/search', async (req, res) => {
     // ?category= takes one slug or several, comma-separated and/or repeated
@@ -372,8 +380,7 @@ module.exports = function (db, appConfig) {
       const results = [];
       const scores = new Map();
       const catHits = new Map();
-      for (const o of await loadPublicOrgs()) {
-        const p = orgsHelper.publicOrg(o);
+      for (const { org: o, pub: p } of await publicOrgs()) {
         if (cats.length) {
           const hits = cats.filter(c => (p.categories || []).some(pc => pc.slug === c.slug)).length;
           if (!hits) continue;
@@ -428,9 +435,12 @@ module.exports = function (db, appConfig) {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Not found' });
     try {
-      const [o] = await orgsHelper.loadOrgs(db, [id]);
-      if (!orgsHelper.isPublic(o)) return res.status(404).json({ error: 'Not found' });
-      res.json({ org: orgsHelper.publicOrg(o) });
+      // Served from the same cache as search; the list holds public orgs
+      // only, and the visibility check is repeated here so an org that is
+      // not (or no longer) public is a 404 whatever the cache holds.
+      const hit = (await publicOrgs()).find(e => e.org.org_id === id);
+      if (!hit || !orgsHelper.isPublic(hit.org)) return res.status(404).json({ error: 'Not found' });
+      res.json({ org: hit.pub });
     } catch (err) {
       console.error('[api] directory org failed:', err);
       res.status(500).json({ error: 'Could not load this profile' });

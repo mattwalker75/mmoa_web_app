@@ -19,6 +19,11 @@
 # long-running instance that is never restarted is not rotated — restart it
 # (./RESTART_APP.sh) now and then, or add logrotate.
 #
+# Dependency check: after setup and before launch, `npm audit` (production
+# deps only, high/critical) runs with a short timeout. Findings are printed as
+# a WARNING block and the app starts anyway; offline / registry errors are
+# skipped silently. Run `npm run audit` by hand for the full report.
+#
 # NODE_ENV defaults to "production" (unless already set in the environment):
 # Express then never renders an error's stack trace into a response.
 set -e
@@ -99,6 +104,36 @@ case "$1" in
     exit 1
     ;;
 esac
+
+# Known-vulnerability check on the production dependencies (see the header
+# comment). Never blocks the start: the whole block is best effort. `timeout`
+# (coreutils) caps a slow registry; macOS has none by default, so fall back
+# to a plain run there.
+audit_check() {
+  local out status=0
+  if command -v timeout >/dev/null 2>&1; then
+    out="$(timeout 30 npm audit --omit=dev --audit-level=high 2>&1)" || status=$?
+  else
+    out="$(npm audit --omit=dev --audit-level=high 2>&1)" || status=$?
+  fi
+  if [ "$status" -eq 0 ]; then
+    echo "[start] dependency check: no high/critical vulnerabilities in production deps."
+  elif printf '%s' "$out" | grep -qi 'vulnerabilit'; then
+    echo
+    echo "[start] ############################################################"
+    echo "[start] # WARNING: npm audit found vulnerabilities in the production"
+    echo "[start] # dependencies. Starting anyway — review and update soon:"
+    echo "[start] #   npm run audit               (full report)"
+    echo "[start] #   npm audit fix --omit=dev    (then npm test + restart)"
+    echo "[start] ############################################################"
+    printf '%s\n' "$out" | sed 's/^/[start]   /'
+    echo "[start] ############################################################"
+    echo
+  else
+    echo "[start] dependency check skipped (npm audit could not reach the registry or timed out)."
+  fi
+}
+audit_check || true
 
 # Don't start a second copy if one is already running; drop a stale PID file.
 if [ -f "$PID_FILE" ]; then

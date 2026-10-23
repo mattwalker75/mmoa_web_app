@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node app.js",
     "test": "node --test test/*.test.js",
+    "audit": "npm audit --omit=dev",
     "install:frontend": "npm --prefix frontend/mmoa-web-ui install",
     "build:frontend": "npm --prefix frontend/mmoa-web-ui install && npm --prefix frontend/mmoa-web-ui run build",
     "dev:frontend": "npm --prefix frontend/mmoa-web-ui start"
