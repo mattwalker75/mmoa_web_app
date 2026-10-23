@@ -306,6 +306,9 @@ module.exports = function (db, appConfig) {
     try {
       // Per-IP + per-account brute-force gate: refuse before any bcrypt work.
       const lk = await checkLockout(db, appConfig, { ip, identifier });
+      if (lk.manual) {
+        return res.status(403).json({ error: 'This account has been locked by Mission Men of Anna. Contact MMoA to restore access.', code: 'account_locked' });
+      }
       if (lk.locked) {
         res.set('Retry-After', String(lk.retryAfter));
         return res.status(429).json({
@@ -416,6 +419,9 @@ module.exports = function (db, appConfig) {
       const ip = req.ip;
       const identifier = u.login_name;
       const lk = await checkLockout(db, appConfig, { ip, identifier });
+      if (lk.manual) {
+        return res.status(403).json({ error: 'This account has been locked by Mission Men of Anna. Contact MMoA to restore access.', code: 'account_locked' });
+      }
       if (lk.locked) {
         res.set('Retry-After', String(lk.retryAfter));
         return res.status(429).json({

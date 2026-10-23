@@ -63,6 +63,10 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   user. Consumed / long-expired rows are pruned every 15 minutes.
 - **`login_lockouts`** — brute-force state per `scope` (`ip` | `account`) and
   `scope_key`: `fail_count`, `locked_until_ms` (epoch ms), `last_failed_at`.
+  An `account` row whose `locked_until_ms` is `253402300799000` (year 9999)
+  is a lock applied by an admin from the console ("Lock login"); it never
+  lapses and the login API answers 403 `account_locked` until the row is
+  deleted (console "Unlock login" / Locked Users → Unlock).
 
 **"Need Help?" directory**
 - **`organizations`** — 1:1 with `users` (`user_id` UNIQUE, CASCADE). `name`,

@@ -19,6 +19,13 @@
 
 const DEFAULTS = { enabled: true, maxFailures: 10, lockoutSeconds: 300 };
 
+// A lock applied by an MMoA admin from the console ("Lock login" on the
+// nonprofit's page) is an 'account' row whose locked_until_ms is this far-
+// future sentinel (9999-12-31T23:59:59Z). It never lapses: only "Unlock
+// login" / Locked Users → Unlock (which delete the row) end it. The console
+// writes and recognises the same value (helpers/lockouts.js there).
+const MANUAL_LOCK_MS = 253402300799000;
+
 function lockoutConfig(appConfig) {
   const c = (appConfig && appConfig.security && appConfig.security.loginLockout) || {};
   const maxFailures = Number.isFinite(c.maxFailures) && c.maxFailures > 0 ? c.maxFailures : DEFAULTS.maxFailures;
@@ -39,22 +46,29 @@ function getRow(db, scope, key) {
   );
 }
 
-// Remaining lockout seconds for one axis (0 if not locked).
+// One axis: { retry: remaining lockout seconds (0 if not locked), manual }.
 async function checkScope(db, scope, key, now) {
   const row = await getRow(db, scope, key);
   const until = row && row.locked_until_ms ? Number(row.locked_until_ms) : 0;
-  return until > now ? Math.ceil((until - now) / 1000) : 0;
+  return { retry: until > now ? Math.ceil((until - now) / 1000) : 0, manual: until >= MANUAL_LOCK_MS };
 }
 
-// Is the caller currently locked on either axis? Returns { locked, retryAfter }.
+// Is the caller currently locked on either axis? Returns
+// { locked, retryAfter, manual } — manual = locked by an MMoA admin (the
+// 'account' axis; an admin lock is checked even when the automatic lockout
+// is disabled in config, since it is a deliberate decision, not a counter).
 async function checkLockout(db, appConfig, { ip, identifier }) {
   const c = lockoutConfig(appConfig);
-  if (!c.enabled) return { locked: false, retryAfter: 0 };
   const now = Date.now();
-  let retry = 0;
-  if (ip) retry = Math.max(retry, await checkScope(db, 'ip', ip, now));
-  if (identifier) retry = Math.max(retry, await checkScope(db, 'account', identifier.toLowerCase(), now));
-  return { locked: retry > 0, retryAfter: retry };
+  let retry = 0, manual = false;
+  if (identifier) {
+    const a = await checkScope(db, 'account', identifier.toLowerCase(), now);
+    if (a.manual) return { locked: true, retryAfter: a.retry, manual: true };
+    if (c.enabled) retry = Math.max(retry, a.retry);
+  }
+  if (!c.enabled) return { locked: false, retryAfter: 0, manual };
+  if (ip) retry = Math.max(retry, (await checkScope(db, 'ip', ip, now)).retry);
+  return { locked: retry > 0, retryAfter: retry, manual };
 }
 
 // Record one failure on a single axis; apply the lock when the threshold is hit.
@@ -135,4 +149,4 @@ async function cleanup(db, appConfig) {
   );
 }
 
-module.exports = { lockoutConfig, checkLockout, recordFailure, resetLockout, cleanup };
+module.exports = { lockoutConfig, checkLockout, recordFailure, resetLockout, cleanup, MANUAL_LOCK_MS };
