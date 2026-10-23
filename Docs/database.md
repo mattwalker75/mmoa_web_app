@@ -151,6 +151,13 @@ Seeds (categories, cities, board roles) are guarded — re-running a setup file
 never duplicates them. No sample events/raffles/orgs are seeded; for a demo
 run `node scripts/seed-sample-data.js` (and `--remove` to undo).
 
+**Admin console**
+- **`admin_audit`** — written only by the admin console (this app just
+  creates the table): `audit_id`, `at` (UTC), `admin` (console login),
+  `action` (dotted, e.g. `event.publish`), `target_kind` / `target_id` /
+  `target_label`, `summary`, `ip`. Shows in the console's Audit log and the
+  Data Browser, and is included in backups.
+
 ## Uploaded images
 
 Files live in `<appDir>/uploads/{events,raffles,orgs,board}/<16 random hex>.<jpg|png|webp>`

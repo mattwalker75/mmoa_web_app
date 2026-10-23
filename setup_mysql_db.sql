@@ -365,3 +365,18 @@ SELECT * FROM (
     UNION ALL SELECT 'Sergeant at Arms', 'Maintains order during meetings and ensures adherence to bylaws', 6
 ) AS seed
 WHERE NOT EXISTS (SELECT 1 FROM board_members);
+
+CREATE TABLE IF NOT EXISTS admin_audit (
+    audit_id     INT AUTO_INCREMENT PRIMARY KEY,
+    at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    admin        VARCHAR(100) NOT NULL,
+    action       VARCHAR(60) NOT NULL,
+    target_kind  VARCHAR(40) NULL,
+    target_id    VARCHAR(100) NULL,
+    target_label VARCHAR(300) NULL,
+    summary      VARCHAR(1000) NULL,
+    ip           VARCHAR(64) NULL,
+    INDEX idx_admin_audit_at (at),
+    INDEX idx_admin_audit_admin (admin, at),
+    INDEX idx_admin_audit_action (action, at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

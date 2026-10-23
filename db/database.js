@@ -349,7 +349,7 @@ const TABLE_MIGRATIONS = [
 const SCHEMA_V2_TABLES = [
   'organizations', 'org_contacts', 'org_images', 'categories', 'org_categories',
   'cities', 'org_cities', 'events', 'event_beneficiaries', 'raffles',
-  'raffle_images', 'board_members', 'raffle_beneficiaries'
+  'raffle_images', 'board_members', 'raffle_beneficiaries', 'admin_audit'
 ];
 
 // Split a setup_*.sql file into statements grouped by the table they act on:

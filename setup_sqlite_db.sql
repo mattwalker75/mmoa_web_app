@@ -422,3 +422,27 @@ SELECT * FROM (
     UNION ALL SELECT 'Sergeant at Arms', 'Maintains order during meetings and ensures adherence to bylaws', 6
 ) AS seed
 WHERE NOT EXISTS (SELECT 1 FROM board_members);
+
+-- ----------------------------------------------------------------------------
+-- ADMIN AUDIT (written by the admin console; this app only creates the table)
+-- ----------------------------------------------------------------------------
+-- One row per console action that changes something (publish, verify,
+-- delete, restore, settings…). `at` is UTC 'YYYY-MM-DD HH:MM:SS'; `admin` is
+-- the console login; `action` is dotted, e.g. 'event.publish'; target_* name
+-- what was acted on; `summary` is a short human sentence; `ip` the admin's.
+-- Lives in this database so it shows in the Data Browser and travels with
+-- backups. Nothing in this app reads it.
+CREATE TABLE IF NOT EXISTS admin_audit (
+    audit_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    at           TIMESTAMP NOT NULL,
+    admin        TEXT NOT NULL,
+    action       TEXT NOT NULL,
+    target_kind  TEXT,
+    target_id    TEXT,
+    target_label TEXT,
+    summary      TEXT,
+    ip           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_at ON admin_audit(at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_admin ON admin_audit(admin, at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit(action, at);
