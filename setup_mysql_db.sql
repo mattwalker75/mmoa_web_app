@@ -327,6 +327,10 @@ CREATE TABLE IF NOT EXISTS board_members (
 -- ============================================================================
 -- SEEDS (guarded: re-running this file never duplicates them)
 -- ============================================================================
+-- PARSER GUARD: db/database.js (schemaStatements) splits this file on ';' and
+-- strips "-- …" comments to pull the CREATE / INSERT statements for its boot
+-- migrations. Never put a ';' inside a string literal here (seed text, a
+-- comment on the same line as SQL). test/schema.test.js checks the split.
 INSERT IGNORE INTO categories (slug, name, sort) VALUES
     ('food', 'Food', 1),
     ('housing', 'Housing & shelter', 2),

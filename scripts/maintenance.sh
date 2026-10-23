@@ -2,9 +2,10 @@
 #
 # maintenance.sh — toggle the MMoA web app into / out of maintenance mode.
 #
-# Writes maintenance.json in the project root. The Express server reads that
-# file live (helpers/maintenance.js), so changes take effect immediately with
-# no restart.
+# Writes maintenance.json in the project root (atomically: temp file + rename,
+# so the server never reads a half-written file). The Express server reads
+# that file live (helpers/maintenance.js), so changes take effect immediately
+# with no restart.
 #
 # Usage:
 #   scripts/maintenance.sh --enable --title "Title message" --message "Detailed message"
@@ -108,7 +109,11 @@ case "$ACTION" in
         message: process.env.MT_MESSAGE || "",
         since: new Date().toISOString()
       };
-      fs.writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
+      // Write to a temp file and rename it into place: the server reads the
+      // file live on every request, so it must never see a truncated copy.
+      const tmp = process.argv[1] + ".tmp." + process.pid;
+      fs.writeFileSync(tmp, JSON.stringify(out, null, 2) + "\n");
+      fs.renameSync(tmp, process.argv[1]);
     ' "$STATE_FILE"
 
     echo "Maintenance mode ENABLED."
@@ -123,7 +128,11 @@ case "$ACTION" in
     "$NODE_BIN" -e '
       const fs = require("fs");
       const out = { enabled: false, since: new Date().toISOString() };
-      fs.writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
+      // Write to a temp file and rename it into place: the server reads the
+      // file live on every request, so it must never see a truncated copy.
+      const tmp = process.argv[1] + ".tmp." + process.pid;
+      fs.writeFileSync(tmp, JSON.stringify(out, null, 2) + "\n");
+      fs.renameSync(tmp, process.argv[1]);
     ' "$STATE_FILE"
 
     echo "Maintenance mode DISABLED. The site is serving normally."

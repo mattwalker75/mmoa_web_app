@@ -9,7 +9,9 @@
 //   db.all(sql, params, cb)   — many rows
 //   db.run(sql, params, cb)   — INSERT / UPDATE / DELETE (cb(err, { lastID, changes }))
 //   db.getAsync / allAsync / runAsync — Promise wrappers
-//   db.transaction(fn)        — runs fn(tx) where tx has the same methods, in a tx
+//   db.transaction(fn)        — runs fn(tx) where tx has the *Async methods, in a tx
+//                               (use tx.*, not db.*, inside fn; on SQLite the
+//                               db.* calls wait for the open tx to finish)
 //
 // Why this shape: the admin console (mmoa_admin_console) talks to this same
 // database through the same surface, so query code can move between the two
@@ -17,6 +19,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { AsyncLocalStorage } = require('async_hooks');
+
+// How long a SQLite statement waits for a lock held by ANOTHER process (the
+// admin console writes the same file) before failing with SQLITE_BUSY.
+const SQLITE_BUSY_TIMEOUT_MS = 5000;
 
 function initSqlite(cfg) {
   const sqlite3 = require('sqlite3');
@@ -27,27 +34,104 @@ function initSqlite(cfg) {
   const isFresh = !fs.existsSync(dbFile);
   const sqliteDb = new sqlite3.Database(dbFile);
 
-  // FK enforcement is OFF by default in SQLite — turn it on so the CASCADEs
-  // in the schema actually fire.
-  sqliteDb.run('PRAGMA foreign_keys = ON');
+  // The admin console opens this same file from its own process. Without a
+  // busy timeout any write that lands while it holds the lock fails at once
+  // with SQLITE_BUSY (a 500 to the visitor); with one, SQLite retries for up
+  // to 5 s first.
+  sqliteDb.configure('busyTimeout', SQLITE_BUSY_TIMEOUT_MS);
 
-  // `ready` resolves once a fresh file's bootstrap DDL has finished, so the
-  // boot-time migrations below never race it (they await db.ready).
-  let ready = Promise.resolve();
+  // ── Raw statement path (no transaction gating) ──────────────────────────
+  // Everything below goes through these three; the public getAsync /
+  // allAsync / runAsync add the transaction gate (see transaction()).
+  function rawGet(sql, params) {
+    return new Promise((resolve, reject) => {
+      sqliteDb.get(sql, params || [], (err, row) => err ? reject(err) : resolve(row));
+    });
+  }
+  function rawAll(sql, params) {
+    return new Promise((resolve, reject) => {
+      sqliteDb.all(sql, params || [], (err, rows) => err ? reject(err) : resolve(rows));
+    });
+  }
+  function rawRun(sql, params) {
+    return new Promise((resolve, reject) => {
+      sqliteDb.run(sql, params || [], function (err) {
+        if (err) reject(err);
+        else resolve({ lastID: this.lastID, changes: this.changes });
+      });
+    });
+  }
+
+  // `ready` resolves once the connection PRAGMAs and, for a fresh file, the
+  // bootstrap DDL have finished, so the boot-time migrations below never race
+  // them (they await db.ready).
+  //   foreign_keys  — OFF by default in SQLite; ON so the schema's CASCADEs fire.
+  //   journal_mode  — WAL lets the admin console's writes and this app's reads
+  //                   overlap instead of blocking each other (readers never
+  //                   block the writer and vice versa). It is persistent in the
+  //                   file and creates mmoa_web_app.db-wal / -shm next to it
+  //                   (both git-ignored). Fine on an existing rollback-journal
+  //                   file; if another process holds it open at that moment the
+  //                   switch fails harmlessly and is retried on the next boot.
+  let ready = rawRun('PRAGMA foreign_keys = ON')
+    .then(() => rawGet('PRAGMA journal_mode = WAL'))
+    .then((row) => {
+      const mode = row && String(row.journal_mode || '').toLowerCase();
+      if (mode !== 'wal') console.warn(`[db] SQLite journal_mode is "${mode}" (wanted WAL) — concurrent writes may see SQLITE_BUSY`);
+    })
+    .catch((err) => console.warn('[db] SQLite PRAGMA setup failed:', err.message));
   if (isFresh) {
     const schemaPath = path.join(__dirname, '..', 'setup_sqlite_db.sql');
     if (fs.existsSync(schemaPath)) {
       const ddl = fs.readFileSync(schemaPath, 'utf8');
-      ready = new Promise((resolve) => {
+      ready = ready.then(() => new Promise((resolve) => {
         sqliteDb.exec(ddl, (err) => {
           if (err) console.error('[db] SQLite schema bootstrap failed:', err.message);
           else console.log(`[db] Initialized fresh SQLite database at ${dbFile}`);
           resolve();
         });
-      });
+      }));
     } else {
       console.warn(`[db] No setup_sqlite_db.sql found — DB is empty.`);
     }
+  }
+
+  // ── Transaction gate ────────────────────────────────────────────────────
+  // SQLite uses ONE shared connection, so BEGIN/COMMIT are process-wide: any
+  // statement that runs while a transaction is open is INSIDE it, and a
+  // ROLLBACK takes it down too (and two overlapping transactions would
+  // interleave — a nested BEGIN errors). So:
+  //   - transactions are serialized through `txChain` (one at a time), and
+  //   - every statement issued through the public API waits for the current
+  //     transaction to finish before it runs, while the `tx` object handed to
+  //     the transaction body uses the raw path and never waits.
+  //   - `inflight` counts public statements already running; a transaction
+  //     waits for them to drain before BEGIN so none straddles the boundary.
+  //   - `txStore` marks code running inside a transaction body, so a stray
+  //     db.* call made there (instead of tx.*) runs raw rather than
+  //     deadlocking on its own transaction's chain.
+  let txChain = Promise.resolve();
+  let inflight = 0;
+  let idleWaiters = [];
+  const txStore = new AsyncLocalStorage();
+  const tx = { engine: 'sqlite', getAsync: rawGet, allAsync: rawAll, runAsync: rawRun };
+
+  async function gated(rawFn, sql, params) {
+    if (txStore.getStore()) return rawFn(sql, params); // inside a transaction body
+    await txChain;
+    inflight++;
+    try {
+      return await rawFn(sql, params);
+    } finally {
+      if (--inflight === 0) { const w = idleWaiters; idleWaiters = []; w.forEach(r => r()); }
+    }
+  }
+  function whenIdle() {
+    return inflight === 0 ? Promise.resolve() : new Promise((res) => idleWaiters.push(res));
+  }
+  // Callback-style wrappers over the gated path.
+  function withCb(p, cb) {
+    p.then(v => cb && cb(null, v), e => cb && cb(e, null));
   }
 
   return {
@@ -57,62 +141,39 @@ function initSqlite(cfg) {
 
     get(sql, params, cb) {
       if (typeof params === 'function') { cb = params; params = []; }
-      sqliteDb.get(sql, params, cb);
+      withCb(gated(rawGet, sql, params), cb);
     },
     all(sql, params, cb) {
       if (typeof params === 'function') { cb = params; params = []; }
-      sqliteDb.all(sql, params, cb);
+      withCb(gated(rawAll, sql, params), cb);
     },
     run(sql, params, cb) {
       if (typeof params === 'function') { cb = params; params = []; }
-      sqliteDb.run(sql, params, function (err) {
-        if (cb) cb(err, err ? null : { lastID: this.lastID, changes: this.changes });
-      });
+      withCb(gated(rawRun, sql, params), cb);
     },
 
-    getAsync(sql, params) {
-      return new Promise((resolve, reject) => {
-        sqliteDb.get(sql, params || [], (err, row) => err ? reject(err) : resolve(row));
-      });
-    },
-    allAsync(sql, params) {
-      return new Promise((resolve, reject) => {
-        sqliteDb.all(sql, params || [], (err, rows) => err ? reject(err) : resolve(rows));
-      });
-    },
-    runAsync(sql, params) {
-      return new Promise((resolve, reject) => {
-        sqliteDb.run(sql, params || [], function (err) {
-          if (err) reject(err);
-          else resolve({ lastID: this.lastID, changes: this.changes });
-        });
-      });
-    },
+    getAsync(sql, params) { return gated(rawGet, sql, params); },
+    allAsync(sql, params) { return gated(rawAll, sql, params); },
+    runAsync(sql, params) { return gated(rawRun, sql, params); },
 
-    // Transaction wrapper. SQLite uses ONE shared connection, so BEGIN/COMMIT
-    // are process-wide — two overlapping transactions would interleave on the
-    // same connection (a nested BEGIN errors, or one tx's writes land inside
-    // another's BEGIN/COMMIT). Serialize transactions through an in-process
-    // queue so each runs to completion before the next starts.
+    // Transaction wrapper — see "Transaction gate" above. fn(tx) must use
+    // tx.getAsync / tx.allAsync / tx.runAsync for its statements.
     async transaction(fn) {
-      const tx = this;
-      const run = async () => {
-        await tx.runAsync('BEGIN');
+      const prev = txChain;
+      let release;
+      txChain = new Promise((res) => { release = res; }); // never rejects
+      try {
+        await prev;                           // the prior transaction has finished
+        while (inflight) await whenIdle();    // and no public statement is still running
+        await rawRun('BEGIN');
         try {
-          const result = await fn(tx);
-          await tx.runAsync('COMMIT');
+          const result = await txStore.run(tx, () => fn(tx));
+          await rawRun('COMMIT');
           return result;
         } catch (err) {
-          try { await tx.runAsync('ROLLBACK'); } catch (e) { /* ignore */ }
+          try { await rawRun('ROLLBACK'); } catch (e) { /* ignore */ }
           throw err;
         }
-      };
-      const prev = tx._txChain || Promise.resolve();
-      let release;
-      tx._txChain = new Promise((res) => { release = res; });
-      try {
-        await prev.catch(() => {}); // wait for the prior tx; don't inherit its rejection
-        return await run();
       } finally {
         release();
       }

@@ -112,13 +112,26 @@ async function resetLockout(db, { ip, identifier }) {
   if (identifier) await db.runAsync('DELETE FROM login_lockouts WHERE scope = ? AND scope_key = ?', ['account', identifier.toLowerCase()]);
 }
 
-// Drop rows that are no longer locked and have no standing failures, so the
-// table doesn't accumulate stale entries. Safe to call periodically.
-async function cleanup(db) {
+// Drop rows that are no longer locked and either have no standing failures or
+// haven't failed in a long while (a few wrong passwords that never reached
+// maxFailures would otherwise sit in the table forever), so it doesn't
+// accumulate stale entries. "A long while" is the larger of 24 h and twice
+// lockoutSeconds, so a lock-length configured beyond a day still ages out
+// sensibly. A row that is currently locked is always kept. Safe to call
+// periodically.
+async function cleanup(db, appConfig) {
+  const c = lockoutConfig(appConfig);
   const now = Date.now();
+  const staleBefore = sqlTime(now - Math.max(24 * 3600, c.lockoutSeconds * 2) * 1000);
+  // last_failed_at / updated_at are 'YYYY-MM-DD HH:MM:SS' UTC on both engines
+  // (SQLite TEXT compares lexically; MySQL TIMESTAMP compares as a datetime,
+  // and the pooled sessions are pinned to UTC) — so one bound string works
+  // for both. COALESCE covers a row that somehow has no last_failed_at.
   await db.runAsync(
-    'DELETE FROM login_lockouts WHERE fail_count = 0 AND (locked_until_ms IS NULL OR locked_until_ms <= ?)',
-    [now]
+    `DELETE FROM login_lockouts
+      WHERE (locked_until_ms IS NULL OR locked_until_ms <= ?)
+        AND (fail_count = 0 OR COALESCE(last_failed_at, updated_at, created_at) < ?)`,
+    [now, staleBefore]
   );
 }
 

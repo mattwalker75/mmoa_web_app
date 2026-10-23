@@ -390,7 +390,7 @@ module.exports = function (db, appConfig) {
           // substring: "rent" must not hit "parents"). Name hits rank above
           // service-category and search-keyword hits, which rank above
           // address / hours / city hits.
-          const all = tokenize(orgsHelper.searchText(o));
+          const all = tokenize(orgsHelper.searchText(o, p));
           const name = tokenize(p.name);
           const cats = tokenize((p.categories || []).map(c => c.name).join(' ') + ' ' + (o.search_tags || ''));
           let score = 0;
@@ -455,7 +455,11 @@ module.exports = function (db, appConfig) {
     if (cached && cached.mtimeMs === stat.mtimeMs) return cached.raw;
     let raw;
     try { raw = fs.readFileSync(file, 'utf8'); } catch (e) { return null; }
-    _contentCache[section] = { mtimeMs: stat.mtimeMs, raw };
+    // An empty read (the console truncating the file just before rewriting
+    // it, or a read that raced the write) is served once but never cached —
+    // the next request re-reads instead of showing a blank section until the
+    // mtime moves again.
+    if (raw) _contentCache[section] = { mtimeMs: stat.mtimeMs, raw };
     return raw;
   }
 

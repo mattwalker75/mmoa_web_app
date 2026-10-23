@@ -21,7 +21,10 @@ function parseSqlTimeMs(t) {
   if (t == null) return NaN;
   if (t instanceof Date) return t.getTime();
   const s = String(t);
-  const iso = s.replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z');
+  // Append 'Z' unless the string already ends in a zone designator (Z or
+  // ±hh:mm / ±hhmm) — both alternatives anchored, so a 'z' elsewhere in a
+  // garbage string can't suppress it.
+  const iso = s.replace(' ', 'T') + (/(?:[zZ]|[+-]\d\d:?\d\d)$/.test(s) ? '' : 'Z');
   return Date.parse(iso);
 }
 

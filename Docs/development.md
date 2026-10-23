@@ -25,7 +25,7 @@ routes/
 test/                          # `npm test` (node --test): markdownLite + XSS cases
 views/escapeHtml.js            # HTML escaping (leaf module)
 scripts/
-  create-member.js             # bootstrap a verified nonprofit login (+ its org; --org "<name>")
+  create-member.js             # bootstrap a verified nonprofit login (+ its org; --org "<name>"; password via MEMBER_PASSWORD or prompt)
   seed-sample-data.js          # optional "[Sample]" events/raffle/orgs; --remove undoes it
   sample/shotgun.jpg           # photo for the sample raffle only
   maintenance.sh               # --enable/--disable/--status (the console runs this)

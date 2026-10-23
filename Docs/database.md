@@ -7,8 +7,16 @@
 - **SQLite** (`sqlite`, the default — locally and on the EC2 instance). The file
   `mmoa_web_app.db` (in the app directory) is auto-created from
   `setup_sqlite_db.sql` on first boot if missing. `./SETUP_SQLLITE_DB.sh` wipes
-  and rebuilds it (stop the app first). SQLite has one shared connection, so
-  transactions are serialized through an in-process queue.
+  and rebuilds it (it refuses while the app is running — `./STOP_APP.sh` first).
+  SQLite has one shared connection, so transactions are serialized through an
+  in-process queue, and while one is open every other `db.*` statement waits
+  for it (inside `transaction(fn)` use `tx.*`, which never waits). The
+  connection runs in **WAL** journal mode with a 5 s busy timeout, so the
+  admin console's writes to the same file don't surface as `SQLITE_BUSY`
+  errors; WAL keeps two sidecar files next to the database,
+  `mmoa_web_app.db-wal` and `mmoa_web_app.db-shm` (git-ignored, removed by
+  `SETUP_SQLLITE_DB.sh`) — back up all three together, or use
+  `sqlite3 mmoa_web_app.db ".backup out.db"`.
 - **MySQL / MariaDB** (`mysql`). Run `./SETUP_MYSQL_DB.sh` (drops + recreates the
   database and the `mmoa_app` user from `config.json`, then loads
   `setup_mysql_db.sql`) or load `setup_mysql_db.sql` yourself, then set the

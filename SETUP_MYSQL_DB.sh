@@ -11,8 +11,6 @@
 
 cd "$(dirname "$0")"
 
-MYSQL_COMMAND="/opt/homebrew/bin/mysql"
-
 
 #######################
 #
@@ -26,8 +24,10 @@ then
    exit 255
 fi
 
-which mysql > /dev/null 2>&1
-if (( $? != 0 ))
+# Use whichever mysql is on PATH (Homebrew's lands in /opt/homebrew/bin on
+# Apple silicon, /usr/local/bin on Intel; Linux in /usr/bin).
+MYSQL_COMMAND="$(command -v mysql)"
+if [ -z "$MYSQL_COMMAND" ]
 then
    echo "You need to install Mariadb (MySQL)"
    echo "RUN:  brew install mariadb"
@@ -58,6 +58,11 @@ DATABASE_NAME=$(jq -r '.database.mysql.database // "mmoa_web_app"' config.json)
 USER_NAME=$(jq -r '.database.mysql.user // "mmoa_app"' config.json)
 USER_PASSWORD=$(jq -r '.database.mysql.password // ""' config.json)
 
+# The password goes into a double-quoted SQL string literal below, so escape
+# what would end or alter it: backslashes first, then double quotes.
+# (Newlines in a password are not supported.)
+USER_PASSWORD_SQL=$(printf '%s' "$USER_PASSWORD" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+
 # setup_mysql_db.sql creates and USEs `mmoa_web_app` by name. A different
 # database name in config.json would leave the app pointing at an empty DB.
 if [ "$DATABASE_NAME" != "mmoa_web_app" ]
@@ -79,7 +84,7 @@ echo "Delete user..."
 echo "DROP USER IF EXISTS \"${USER_NAME}\"@\"localhost\";" | sudo ${MYSQL_COMMAND} -u root
 
 echo "Setting up User...."
-echo "CREATE USER IF NOT EXISTS \"${USER_NAME}\"@\"localhost\" IDENTIFIED BY \"${USER_PASSWORD}\";" | sudo ${MYSQL_COMMAND} -u root
+echo "CREATE USER IF NOT EXISTS \"${USER_NAME}\"@\"localhost\" IDENTIFIED BY \"${USER_PASSWORD_SQL}\";" | sudo "${MYSQL_COMMAND}" -u root
 
 echo "Creating Database...."
 echo "CREATE DATABASE IF NOT EXISTS ${DATABASE_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" | sudo ${MYSQL_COMMAND} -u root

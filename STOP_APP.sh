@@ -39,10 +39,27 @@ esac
 # Resolve the app's port from config.json (fall back to the app default, 3004).
 PORT="$(node -e "try{process.stdout.write(String(require('./config.json').port||3004))}catch(e){process.stdout.write('3004')}" 2>/dev/null || echo 3004)"
 
-# Collect candidate PIDs: the recorded one, plus whoever is listening on PORT.
+# Is PID a live copy of THIS app? After a reboot tmp/app.pid can still name a
+# PID the OS has since handed to an unrelated process, so a bare `kill -0`
+# isn't enough: the command line has to look like "node … app.js" too.
+app_pid_alive() {
+  local pid="$1"
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  kill -0 "$pid" 2>/dev/null || return 1
+  ps -o command= -p "$pid" 2>/dev/null | grep -q 'node.*app\.js'
+}
+
+# Collect candidate PIDs: the recorded one (only if it really is this app —
+# a stale file is dropped), plus whoever is listening on PORT.
 PIDS=""
 if [ -f "$PID_FILE" ]; then
-  PIDS="$PIDS $(cat "$PID_FILE" 2>/dev/null)"
+  REC_PID="$(cat "$PID_FILE" 2>/dev/null)"
+  if app_pid_alive "$REC_PID"; then
+    PIDS="$PIDS $REC_PID"
+  else
+    echo "[stop] ignoring stale $PID_FILE (PID ${REC_PID:-?} is not a running copy of this app)."
+    rm -f "$PID_FILE"
+  fi
 fi
 if command -v lsof >/dev/null 2>&1; then
   PIDS="$PIDS $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null)"

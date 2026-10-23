@@ -36,7 +36,10 @@ const FIELD_CAPS = {
   other_social_url: 500,
   description_md: 5000,
   hours: 1000,
-  what_to_bring: 2000
+  what_to_bring: 2000,
+  // Private search keywords: up to 40 tags × 50 chars plus separators
+  // (helpers/formats.js normalizeSearchTags; routes/portal.js slices at 4000).
+  search_tags: 4000
 };
 
 function enforceInputLimits(req, res, next) {

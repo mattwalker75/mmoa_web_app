@@ -66,7 +66,8 @@ Optional, once per clone:
 
 ```bash
 # (optional) a ready-to-use nonprofit login (email already verified; org unverified)
-node scripts/create-member.js pantry pantry@example.org 'First' 'Last' 'somepassword' --org "Anna Food Pantry"
+MEMBER_PASSWORD='somepassword' node scripts/create-member.js pantry pantry@example.org 'First' 'Last' --org "Anna Food Pantry"
+# (omit MEMBER_PASSWORD to be prompted; a 5th argument still works but is visible in ps / shell history)
 
 # (optional) demo content, clearly labelled [Sample]; undo with --remove
 node scripts/seed-sample-data.js

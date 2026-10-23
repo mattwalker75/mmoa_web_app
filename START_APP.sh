@@ -12,12 +12,32 @@
 # and the shell/SSM session exit). Its PID is written to tmp/app.pid and its
 # output to logs/app.log, so STOP_APP.sh / RESTART_APP.sh can find and manage
 # it. Both live inside the project tree.
+#
+# Log rotation: logs/app.log only ever grows (one line per request), so before
+# each launch, if it is over LOG_MAX_MB it is moved aside to logs/app.log.1
+# (replacing any older .1). That caps disk use at roughly 2 × LOG_MAX_MB; a
+# long-running instance that is never restarted is not rotated — restart it
+# (./RESTART_APP.sh) now and then, or add logrotate.
+#
+# NODE_ENV defaults to "production" (unless already set in the environment):
+# Express then never renders an error's stack trace into a response.
 set -e
 cd "$(dirname "$0")"
 
 mkdir -p logs tmp
 PID_FILE="tmp/app.pid"    # records the running app's PID for STOP/RESTART
 LOG_FILE="logs/app.log"   # detached app output goes here
+LOG_MAX_MB=50             # rotate app.log → app.log.1 above this size
+
+# Is PID a live copy of THIS app? After a reboot tmp/app.pid can still name a
+# PID the OS has since handed to an unrelated process, so a bare `kill -0`
+# isn't enough: the command line has to look like "node … app.js" too.
+app_pid_alive() {
+  local pid="$1"
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  kill -0 "$pid" 2>/dev/null || return 1
+  ps -o command= -p "$pid" 2>/dev/null | grep -q 'node.*app\.js'
+}
 
 # Web URL the Web App serves on (mirrors app.js's boot line) — echoed to
 # the terminal after start so developers know where to reach it.
@@ -80,13 +100,29 @@ case "$1" in
     ;;
 esac
 
-# Don't start a second copy if one is already running.
-if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
-  echo "[start] app is already running (PID $(cat "$PID_FILE")). Use ./RESTART_APP.sh or ./STOP_APP.sh."
-  exit 0
+# Don't start a second copy if one is already running; drop a stale PID file.
+if [ -f "$PID_FILE" ]; then
+  OLD_PID="$(cat "$PID_FILE" 2>/dev/null)"
+  if app_pid_alive "$OLD_PID"; then
+    echo "[start] app is already running (PID $OLD_PID). Use ./RESTART_APP.sh or ./STOP_APP.sh."
+    exit 0
+  fi
+  echo "[start] removing stale $PID_FILE (PID ${OLD_PID:-?} is not a running copy of this app)."
+  rm -f "$PID_FILE"
 fi
 
-echo "[start] launching Web App (detached; logs → $LOG_FILE)…"
+# Size-based log rotation (see the header comment).
+if [ -f "$LOG_FILE" ]; then
+  LOG_BYTES="$(wc -c < "$LOG_FILE" | tr -d ' ')"
+  if [ "${LOG_BYTES:-0}" -gt $((LOG_MAX_MB * 1024 * 1024)) ]; then
+    echo "[start] $LOG_FILE is over ${LOG_MAX_MB} MB — rotating to $LOG_FILE.1"
+    mv -f "$LOG_FILE" "$LOG_FILE.1"
+  fi
+fi
+
+export NODE_ENV="${NODE_ENV:-production}"
+
+echo "[start] launching Web App (detached; NODE_ENV=$NODE_ENV; logs → $LOG_FILE)…"
 nohup node app.js >> "$LOG_FILE" 2>&1 &
 APP_PID=$!
 echo "$APP_PID" > "$PID_FILE"

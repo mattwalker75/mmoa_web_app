@@ -136,9 +136,12 @@ function publicOrg(o) {
 /** Text a keyword search may match, lowercased: the name, the PUBLIC
  *  address, hours, services and cities served, plus the org's private search
  *  keywords (written only to be searched; never shown). The description and
- *  "what to bring" are deliberately left out — too many incidental words. */
-function searchText(o) {
-  const p = publicOrg(o);
+ *  "what to bring" are deliberately left out — too many incidental words.
+ *  Pass the already-shaped publicOrg(o) as `p` when the caller has it (the
+ *  directory search does, per org) — shaping it again re-renders the
+ *  description markdown for nothing. */
+function searchText(o, p) {
+  if (!p) p = publicOrg(o);
   return [
     p.name, p.address && p.address.text, p.hours,
     o.search_tags || '',

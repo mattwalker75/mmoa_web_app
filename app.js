@@ -122,7 +122,16 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'web-app', uptime: process.uptime() });
 });
 
-app.use(morgan('tiny'));
+// morgan's stock formats log the full URL, query string included — which
+// would write the console's ?preview=<token> links (and whatever a visitor
+// types) into logs/app.log. Log the path only. (START_APP.sh rotates the log
+// file by size before each launch.)
+morgan.token('path', (req) => {
+  const u = req.originalUrl || req.url || '';
+  const q = u.indexOf('?');
+  return q === -1 ? u : u.slice(0, q);
+});
+app.use(morgan(':method :path :status :res[content-length] - :response-time ms')); // = 'tiny' with :url → :path
 
 // ── sessions ───────────────────────────────────────────────────────────
 // Signing keys come from config.json when real values are set there;
@@ -165,7 +174,7 @@ app.use(express.json({ limit: '16kb' }));
 app.use(enforceInputLimits);
 
 // ── rate-limit auth endpoints ──────────────────────────────────────────
-// Coarse per-IP window over the account-creation / email endpoints. Login is
+// Coarse per-IP window over the account-creation / email / password endpoints. Login is
 // deliberately excluded here: it has a dedicated failed-attempt lockout
 // (middleware/loginLockout.js) that counts only failures and resets on a
 // successful sign-in, which a blanket request limiter can't express.
@@ -178,7 +187,9 @@ if (authRl) {
     legacyHeaders: false,
     message: { error: 'Too many requests. Please wait a few minutes and try again.' }
   });
-  app.use(['/api/auth/signup', '/api/auth/forgot-password', '/api/auth/resend-verification', '/api/auth/reset-password/check'], authLimiter);
+  // change-password also has the account lockout (wrong current password
+  // counts like a failed login); the IP window here caps raw volume.
+  app.use(['/api/auth/signup', '/api/auth/forgot-password', '/api/auth/resend-verification', '/api/auth/reset-password/check', '/api/auth/change-password'], authLimiter);
 }
 
 // ── maintenance mode ─────────────────────────────────────────────────────
@@ -227,7 +238,7 @@ if (spaBuilt) {
 // before sending it; the SPA then boots as usual. Unknown / unpublished slugs
 // get the plain index with a 404 status (the SPA shows its not-found view).
 if (spaBuilt) {
-  const { escapeHtml } = require('./views/escapeHtml');
+  const { injectOgMeta } = require('./helpers/ogMeta');
   const publicApi = require('./routes/public')(db, appConfig);
   let indexCache = { mtimeMs: -1, html: '' };
   const readIndex = () => {
@@ -238,21 +249,14 @@ if (spaBuilt) {
   const absBase = () => (appConfig.publicBaseUrl || `http://localhost:${appConfig.port || 3004}`).replace(/\/+$/, '');
   const siteName = () => appConfig.appTitle || 'Mission Men of Anna';
 
+  // The tag injection itself lives in helpers/ogMeta.js (pure, unit-tested —
+  // DB text can contain `$'` and friends, which String.replace treats as
+  // patterns unless the replacement is a function).
   function sendWithMeta(res, meta) {
-    let html = readIndex();
+    const html = readIndex();
     if (!meta) return res.status(404).type('html').send(html);
-    const abs = (u) => (u && u.startsWith('/')) ? absBase() + u : u;
-    const tags = [
-      ['og:type', 'website'], ['og:site_name', siteName()], ['og:title', meta.title],
-      ['og:description', meta.description], ['og:url', abs(meta.path)], ['og:image', abs(meta.image)]
-    ].filter(([, v]) => v).map(([k, v]) => `<meta property="${k}" content="${escapeHtml(v)}">`);
-    tags.push(`<meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">`);
-    if (meta.description) {
-      html = html.replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${escapeHtml(meta.description)}">`);
-    }
-    html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(meta.title + ' · ' + siteName())}</title>`)
-      .replace('</head>', tags.join('\n') + '\n</head>');
-    res.set('Cache-Control', 'no-cache').type('html').send(html);
+    res.set('Cache-Control', 'no-cache').type('html')
+      .send(injectOgMeta(html, meta, { siteName: siteName(), absBase: absBase() }));
   }
 
   // An admin's preview link (?preview=<token> from the console, ~30 min):
@@ -310,6 +314,34 @@ app.use((req, res) => {
     <pre style="background:#f4f4f5;padding:14px;border-radius:8px;">npm run build:frontend</pre>
     <p>then restart the server. The JSON API at <code>/api</code> is already live.</p>
     </body></html>`);
+});
+
+// ── Error handler (last) ─────────────────────────────────────────────────
+// Anything that throws or calls next(err) — a malformed JSON body (400), a
+// body over the parser limit (413), a DB error on the OG routes — ends here.
+// Without this, Express's default handler sends the error's stack trace as
+// an HTML page whenever NODE_ENV isn't 'production'. Logs method + path; the
+// response carries only the status and a generic message — never err.stack,
+// err.message or a file path. JSON for /api and for callers that accept JSON,
+// a bare HTML page otherwise. (Four parameters: that is how Express tells an
+// error handler from ordinary middleware.)
+app.use((err, req, res, next) => {
+  const status = Number.isInteger(err && err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error(`[error] ${req.method} ${req.path}:`, (err && err.stack) || err);
+  else console.warn(`[error] ${req.method} ${req.path}: ${status} ${(err && err.type) || (err && err.message) || ''}`);
+  if (res.headersSent) return res.end();
+  const message = status === 400 ? 'Bad request'
+    : status === 413 ? 'Request body too large'
+    : status === 415 ? 'Unsupported content type'
+    : status < 500 ? 'Request could not be processed'
+    : 'Something went wrong. Please try again.';
+  const wantsJson = req.path === '/api' || req.path.startsWith('/api/') ||
+    (req.get('accept') || '').includes('application/json') ||
+    (req.get('content-type') || '').includes('application/json');
+  if (wantsJson) return res.status(status).json({ error: message });
+  res.status(status).type('html').send(`<!DOCTYPE html><html><head><title>${status}</title></head>` +
+    `<body style="font-family:system-ui;padding:24px;max-width:520px;margin:auto;">` +
+    `<h2>${status}</h2><p>${message}</p><p><a href="/">Back to the site</a></p></body></html>`);
 });
 
 // ── boot ───────────────────────────────────────────────────────────────
@@ -397,7 +429,7 @@ server.listen(port, () => {
   // Prune resolved brute-force rows (no standing failures, lock expired) so
   // the login_lockouts table doesn't grow unbounded.
   const loginLockout = require('./middleware/loginLockout');
-  setInterval(() => loginLockout.cleanup(db).catch(e => console.error('[security] lockout cleanup failed:', e.message)), 15 * 60 * 1000).unref();
+  setInterval(() => loginLockout.cleanup(db, appConfig).catch(e => console.error('[security] lockout cleanup failed:', e.message)), 15 * 60 * 1000).unref();
 
   // ── token pruning ──────────────────────────────────────────────────────
   // Consumed or long-expired verification + reset tokens serve no purpose

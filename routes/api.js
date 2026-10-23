@@ -131,6 +131,25 @@ module.exports = function (db, appConfig) {
     return (showLinks() && url) ? { devLink: url } : {};
   }
 
+  // req.body is undefined when no body parser matched (wrong content type),
+  // and a JSON body can carry any type in any field. Pull the named fields
+  // out as strings (absent → ''); a non-string value is answered with a JSON
+  // 400 and null is returned — so a handler never TypeErrors into a 500 (or,
+  // for the fields read before a try block, into the default error page).
+  function bodyStrings(req, res, keys) {
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const out = {};
+    for (const k of keys) {
+      const v = b[k];
+      if (v != null && typeof v !== 'string') {
+        res.status(400).json({ error: `${k} must be text` });
+        return null;
+      }
+      out[k] = v || '';
+    }
+    return out;
+  }
+
   function publicUser(u) {
     return {
       user_id: u.user_id,
@@ -170,16 +189,18 @@ module.exports = function (db, appConfig) {
     if (appConfig.allowMemberRegistration === false) {
       return res.status(403).json({ error: 'Sign up is currently disabled' });
     }
+    const b = bodyStrings(req, res, ['org_name', 'ein', 'login_name', 'first_name', 'last_name', 'phone_number', 'email', 'password', 'confirm_password']);
+    if (!b) return;
     try {
-      const orgName = (req.body.org_name || '').trim();
-      const einRaw = (req.body.ein || '').trim();
-      const loginName = (req.body.login_name || '').trim();
-      const firstName = (req.body.first_name || '').trim();
-      const lastName = (req.body.last_name || '').trim();
-      const phoneNumber = (req.body.phone_number || '').trim() || null;
-      const email = (req.body.email || '').trim().toLowerCase();
-      const password = req.body.password || '';
-      const confirm = req.body.confirm_password || '';
+      const orgName = b.org_name.trim();
+      const einRaw = b.ein.trim();
+      const loginName = b.login_name.trim();
+      const firstName = b.first_name.trim();
+      const lastName = b.last_name.trim();
+      const phoneNumber = b.phone_number.trim() || null;
+      const email = b.email.trim().toLowerCase();
+      const password = b.password;
+      const confirm = b.confirm_password;
       const minLen = appConfig.passwordMinLength || 8;
 
       if (!orgName || !einRaw || !loginName || !firstName || !lastName || !email || !password) {
@@ -279,7 +300,9 @@ module.exports = function (db, appConfig) {
   // ── Log in ────────────────────────────────────────────────────────────
   router.post('/auth/login', async (req, res) => {
     const ip = req.ip;
-    const identifier = (req.body.identifier || '').trim();
+    const b = bodyStrings(req, res, ['identifier', 'password']);
+    if (!b) return;
+    const identifier = b.identifier.trim();
     try {
       // Per-IP + per-account brute-force gate: refuse before any bcrypt work.
       const lk = await checkLockout(db, appConfig, { ip, identifier });
@@ -292,7 +315,7 @@ module.exports = function (db, appConfig) {
         });
       }
 
-      const password = req.body.password || '';
+      const password = b.password;
       if (!identifier || !password) {
         return res.status(400).json({ error: 'Login and password are required' });
       }
@@ -369,11 +392,16 @@ module.exports = function (db, appConfig) {
 
   // ── Change my own account password (signed-in, self-service) ──────────
   // Requires the current password (so a hijacked-but-idle session can't
-  // silently change it).
+  // silently change it). A wrong current password counts against the same
+  // per-IP + per-account lockout as a failed login (keyed on the account's
+  // login name), so a stolen cookie can't be used to guess it; the per-IP
+  // auth rate limiter in app.js caps the raw volume on top.
   router.post('/auth/change-password', requireUser, async (req, res) => {
-    const current = (req.body && req.body.current_password) || '';
-    const next = (req.body && req.body.new_password) || '';
-    const confirm = (req.body && req.body.confirm_password) || '';
+    const b = bodyStrings(req, res, ['current_password', 'new_password', 'confirm_password']);
+    if (!b) return;
+    const current = b.current_password;
+    const next = b.new_password;
+    const confirm = b.confirm_password;
     const minLen = appConfig.passwordMinLength || 8;
     if (!current) return res.status(400).json({ error: 'Enter your current password' });
     if (next.length < minLen) return res.status(400).json({ error: `New password must be at least ${minLen} characters` });
@@ -383,10 +411,25 @@ module.exports = function (db, appConfig) {
     try {
       const userId = req.session.user.user_id;
       // Session doesn't carry the hash — fetch it fresh.
-      const u = await db.getAsync('SELECT password_hash FROM users WHERE user_id = ?', [userId]);
+      const u = await db.getAsync('SELECT login_name, password_hash FROM users WHERE user_id = ?', [userId]);
       if (!u) return res.status(401).json({ error: 'Not signed in' });
+      const ip = req.ip;
+      const identifier = u.login_name;
+      const lk = await checkLockout(db, appConfig, { ip, identifier });
+      if (lk.locked) {
+        res.set('Retry-After', String(lk.retryAfter));
+        return res.status(429).json({
+          error: `Too many incorrect password attempts. Try again in ${lk.retryAfter} seconds.`,
+          code: 'locked',
+          retryAfter: lk.retryAfter
+        });
+      }
       const ok = await verifyPassword(current, u.password_hash);
-      if (!ok) return res.status(400).json({ error: 'Your current password is incorrect' });
+      if (!ok) {
+        await recordFailure(db, appConfig, { ip, identifier });
+        return res.status(400).json({ error: 'Your current password is incorrect' });
+      }
+      await resetLockout(db, { ip, identifier });
       const hash = await hashPassword(next);
       await db.runAsync('UPDATE users SET password_hash = ? WHERE user_id = ?', [hash, userId]);
       // Keep THIS session alive; every other cookie now fails the pv check.
@@ -400,7 +443,9 @@ module.exports = function (db, appConfig) {
 
   // ── Verify email (token from the emailed link) ────────────────────────
   router.post('/auth/verify', async (req, res) => {
-    const token = (req.body.token || '').trim();
+    const b = bodyStrings(req, res, ['token']);
+    if (!b) return;
+    const token = b.token.trim();
     if (!token) return res.status(400).json({ error: 'Missing verification token' });
     try {
       const row = await db.getAsync(
@@ -428,11 +473,22 @@ module.exports = function (db, appConfig) {
     }
   });
 
+  // The "account exists" paths below REPLY before the email goes out and
+  // send it in the background (logging a failure): awaiting the send would
+  // make a real address answer measurably slower than an unknown one — a
+  // timing oracle on the enumeration-safe reply. The token row is written
+  // first (fast, and it keeps devLink valid while showLinksInBrowser is on).
+  function sendInBackground(label, promise) {
+    promise.catch(e => console.error(`[api] ${label} email failed:`, (e && e.message) || e));
+  }
+
   router.post('/auth/resend-verification', async (req, res) => {
-    const email = (req.body.email || '').trim().toLowerCase();
+    const b = bodyStrings(req, res, ['email']);
+    if (!b) return;
+    const email = b.email.trim().toLowerCase();
     // Always answer ok (no account enumeration — except via devLink while
     // the TESTING showLinksInBrowser switch is on).
-    const done = (extra) => res.json({ ok: true, message: 'If that account exists and is unverified, a new link is on its way.', ...(extra || {}) });
+    const done = (extra) => { if (!res.headersSent) res.json({ ok: true, message: 'If that account exists and is unverified, a new link is on its way.', ...(extra || {}) }); };
     if (!email) return done();
     try {
       const u = await db.getAsync('SELECT user_id, first_name, email, email_verified_at FROM users WHERE email = ?', [email]);
@@ -444,12 +500,8 @@ module.exports = function (db, appConfig) {
         [u.user_id, token, sqlTime(Date.now() + expiresMinutes * 60 * 1000), sqlTime(Date.now())]
       );
       const verifyUrl = baseUrl() + '/verify?token=' + token;
-      try {
-        await sendVerificationEmail(appConfig, { to: u.email, firstName: u.first_name, verifyUrl, expiresMinutes });
-      } catch (e) {
-        console.error('[api] resend-verification email failed:', e.message || e);
-      }
       done(devLinkFields(verifyUrl));
+      sendInBackground('resend-verification', sendVerificationEmail(appConfig, { to: u.email, firstName: u.first_name, verifyUrl, expiresMinutes }));
     } catch (err) {
       console.error('[api] resend-verification failed:', err);
       done();
@@ -458,8 +510,10 @@ module.exports = function (db, appConfig) {
 
   // ── Forgot password: issue a single-use reset link ────────────────────
   router.post('/auth/forgot-password', async (req, res) => {
-    const email = (req.body.email || '').trim().toLowerCase();
-    const done = (extra) => res.json({ ok: true, message: 'If an account exists for that email, a reset link is on its way.', ...(extra || {}) });
+    const b = bodyStrings(req, res, ['email']);
+    if (!b) return;
+    const email = b.email.trim().toLowerCase();
+    const done = (extra) => { if (!res.headersSent) res.json({ ok: true, message: 'If an account exists for that email, a reset link is on its way.', ...(extra || {}) }); };
     if (!email) return done();
     try {
       const u = await db.getAsync('SELECT user_id, first_name, email, is_active FROM users WHERE email = ?', [email]);
@@ -478,12 +532,8 @@ module.exports = function (db, appConfig) {
         [u.user_id, token, sqlTime(Date.now() + ttlHours * 3600 * 1000), sqlTime(Date.now())]
       );
       const resetUrl = baseUrl() + '/reset-password?token=' + token;
-      try {
-        await sendPasswordResetEmail(appConfig, { to: u.email, firstName: u.first_name, resetUrl, ttlHours });
-      } catch (e) {
-        console.error('[api] forgot-password email failed:', e.message || e);
-      }
       done(devLinkFields(resetUrl));
+      sendInBackground('forgot-password', sendPasswordResetEmail(appConfig, { to: u.email, firstName: u.first_name, resetUrl, ttlHours }));
     } catch (err) {
       console.error('[api] forgot-password failed:', err);
       done();
@@ -498,7 +548,9 @@ module.exports = function (db, appConfig) {
   // clicked is worth telling them, while "replaced" is not alarming. Submit
   // re-validates regardless; this is a courtesy, not the boundary.
   router.post('/auth/reset-password/check', async (req, res) => {
-    const token = (req.body.token || '').trim();
+    const b = bodyStrings(req, res, ['token']);
+    if (!b) return;
+    const token = b.token.trim();
     if (!token) return res.json({ ok: false, code: 'invalid' });
     try {
       const row = await db.getAsync(
@@ -527,9 +579,11 @@ module.exports = function (db, appConfig) {
 
   // ── Reset password (single-use token) ─────────────────────────────────
   router.post('/auth/reset-password', async (req, res) => {
-    const token = (req.body.token || '').trim();
-    const password = req.body.password || '';
-    const confirm = req.body.confirm_password || '';
+    const b = bodyStrings(req, res, ['token', 'password', 'confirm_password']);
+    if (!b) return;
+    const token = b.token.trim();
+    const password = b.password;
+    const confirm = b.confirm_password;
     const minLen = appConfig.passwordMinLength || 8;
     if (!token) return res.status(400).json({ error: 'Missing reset token' });
     if (password.length < minLen) return res.status(400).json({ error: `Password must be at least ${minLen} characters` });

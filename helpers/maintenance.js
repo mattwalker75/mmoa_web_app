@@ -39,7 +39,11 @@ function readState() {
     const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
     if (parsed && parsed.enabled === true) state = parsed;
   } catch {
-    state = null; // malformed file = treat as disabled rather than 500 the site
+    // Malformed / empty file = treat as disabled rather than 500 the site —
+    // but DON'T cache that verdict: maintenance.sh writes atomically, yet a
+    // half-written file by any other means (or a read that raced it) would
+    // otherwise be remembered as "disabled" until the mtime changed again.
+    return null;
   }
   cache = { mtimeMs: stat.mtimeMs, state };
   return state;
