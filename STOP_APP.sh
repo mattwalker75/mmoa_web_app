@@ -49,18 +49,6 @@ app_pid_alive() {
   ps -o command= -p "$pid" 2>/dev/null | grep -q 'node.*app\.js'
 }
 
-# Collect candidate PIDs: the recorded one (only if it really is this app —
-# a stale file is dropped), plus whoever is listening on PORT.
-PIDS=""
-if [ -f "$PID_FILE" ]; then
-  REC_PID="$(cat "$PID_FILE" 2>/dev/null)"
-  if app_pid_alive "$REC_PID"; then
-    PIDS="$PIDS $REC_PID"
-  else
-    echo "[stop] ignoring stale $PID_FILE (PID ${REC_PID:-?} is not a running copy of this app)."
-    rm -f "$PID_FILE"
-  fi
-fi
 # Whoever listens on PORT counts only if it is a node app.js running from
 # THIS install directory — another site on the same machine (e.g. a config
 # restored from a different server that names its port) must never be
@@ -70,6 +58,18 @@ pid_cwd() {
   if [ -r "/proc/$1/cwd" ]; then readlink "/proc/$1/cwd" 2>/dev/null
   else lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1; fi
 }
+# Collect candidate PIDs: the recorded one (only if it really is this app —
+# a stale file is dropped), plus whoever is listening on PORT.
+PIDS=""
+if [ -f "$PID_FILE" ]; then
+  REC_PID="$(cat "$PID_FILE" 2>/dev/null)"
+  if app_pid_alive "$REC_PID" && [ "$(cd "$(pid_cwd "$REC_PID")" 2>/dev/null && pwd -P)" = "$HERE" ]; then
+    PIDS="$PIDS $REC_PID"
+  else
+    echo "[stop] ignoring stale $PID_FILE (PID ${REC_PID:-?} is not a running copy of THIS install)."
+    rm -f "$PID_FILE"
+  fi
+fi
 if command -v lsof >/dev/null 2>&1; then
   for lp in $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null); do
     if app_pid_alive "$lp" && [ "$(cd "$(pid_cwd "$lp")" 2>/dev/null && pwd -P)" = "$HERE" ]; then

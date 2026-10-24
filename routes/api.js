@@ -81,7 +81,9 @@ module.exports = function (db, appConfig) {
     } catch (e) {
       return s; // a DB blip should not log everyone out
     }
-    if (!u || !u.is_active || (s.pv && s.pv !== pwVersion(u.password_hash))) {
+    // Every login stamps pv; a session without one was not issued by a
+    // login (e.g. forged with leaked signing keys) — never accept it.
+    if (!u || !u.is_active || !s.pv || s.pv !== pwVersion(u.password_hash)) {
       req.session = null;
       return null;
     }
