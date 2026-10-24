@@ -534,14 +534,34 @@ module.exports = function (db, appConfig) {
     return raw;
   }
 
+  // The public facts about MMoA itself (config.json `site.*`, edited in the
+  // admin console under Web App Settings → General). Every key here is a
+  // {{token}} in the HTML sections and a field of GET /api/site. A value
+  // that is not configured is '' — the token then renders as nothing.
   function siteFacts() {
     const site = appConfig.site || {};
+    const str = (v) => (v == null ? '' : String(v).trim());
+    const line1 = str(site.addressLine1), line2 = str(site.addressLine2);
+    const city = str(site.city), state = str(site.state), zip = str(site.zip);
+    const cityLine = [city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
     return {
       appTitle: appConfig.appTitle || 'Mission Men of Anna',
+      appSubtitle: str(appConfig.appSubtitle),
       orgName: appConfig.orgName || 'Mission Men of Anna Inc',
-      phone: site.phone || '',
-      ein: site.ein || '',
+      tagline: str(site.tagline),
+      foundedYear: str(site.foundedYear),
+      phone: str(site.phone),
+      email: str(site.email),
+      ein: str(site.ein),
+      addressLine1: line1, addressLine2: line2, city, state, zip,
+      // One-line mailing address: "123 Main St, Suite 4, Anna, TX 75409".
+      address: [line1, line2, cityLine].filter(Boolean).join(', '),
+      meetingInfo: str(site.meetingInfo),
       facebookUrl: safeHttpUrl(site.facebookUrl) || '',
+      instagramUrl: safeHttpUrl(site.instagramUrl) || '',
+      youtubeUrl: safeHttpUrl(site.youtubeUrl) || '',
+      xUrl: safeHttpUrl(site.xUrl) || '',
+      nextdoorUrl: safeHttpUrl(site.nextdoorUrl) || '',
       // '' unless the admin turned the Donate button on (and the link is valid).
       donationUrl: (site.donationEnabled === true && safeHttpUrl(site.donationUrl)) || ''
     };
@@ -593,12 +613,7 @@ module.exports = function (db, appConfig) {
     try {
       const f = siteFacts();
       res.json({
-        appTitle: f.appTitle,
-        orgName: f.orgName,
-        phone: f.phone,
-        ein: f.ein,
-        facebookUrl: f.facebookUrl,
-        donationUrl: f.donationUrl,
+        ...f, // every site fact / token (see siteFacts), then:
         logoUrl: logoUrl(),
         sections: await renderSections()
       });

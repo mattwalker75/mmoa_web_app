@@ -45,6 +45,15 @@ These `{{tokens}}` are filled by the server (HTML-escaped):
 | `{{ein}}` | `config.site.ein` — `33-4035685` |
 | `{{facebookUrl}}` | `config.site.facebookUrl` |
 | `{{donationUrl}}` | `config.site.donationUrl` (blank when not set — only use it in a fragment if a link is configured) |
+| `{{appSubtitle}}`, `{{tagline}}`, `{{foundedYear}}`, `{{meetingInfo}}` | `config.appSubtitle`, `config.site.tagline` / `foundedYear` / `meetingInfo` — optional text facts |
+| `{{email}}` | `config.site.email` — public contact address (use as `mailto:{{email}}`) |
+| `{{addressLine1}}`, `{{addressLine2}}`, `{{city}}`, `{{state}}`, `{{zip}}`, `{{address}}` | `config.site.*` mailing address parts; `{{address}}` is all of them on one line ("PO Box 123, Anna, TX 75409") |
+| `{{instagramUrl}}`, `{{youtubeUrl}}`, `{{xUrl}}`, `{{nextdoorUrl}}` | `config.site.*` social links (http(s) only, else blank) |
+| `{{year}}`, `{{eventCount}}` | the current year; the number of upcoming published events |
+
+Every value is set in the admin console under Web App Settings → General,
+which shows the token next to each field. An unset value renders as nothing,
+so a fragment can mention a token that is not filled in yet.
 | `{{year}}` | current year |
 | `{{eventCount}}` | number of upcoming published events |
 
