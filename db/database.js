@@ -501,7 +501,7 @@ async function runColumnMigrations(db) {
       // Expected on an up-to-date DB: duplicate column / (fresh boot) table not
       // yet created. Anything else is worth a line, but never fatal.
       const m = (e && e.message) || '';
-      if (!/duplicate column|already exists|no such table|doesn't exist|Duplicate column/i.test(m)) {
+      if (!/duplicate column|already exists|no such table|doesn't exist|Duplicate column|command denied/i.test(m)) {
         console.warn(`[db] migration ${table}.${col} skipped:`, m);
       }
     }

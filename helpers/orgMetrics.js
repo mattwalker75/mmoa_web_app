@@ -157,7 +157,9 @@ async function summary(db, orgId, now = Date.now()) {
   ]);
   // Include what is still in memory for the current hour so the numbers a
   // nonprofit sees never lag the whole hour behind.
-  let sinceDay = first && first.s ? String(first.s).slice(0, 10) : null;
+  // MySQL returns a Date, SQLite a 'YYYY-MM-DD HH:MM:SS' string.
+  const firstMs = first ? parseSqlTimeMs(first.s) : NaN;
+  let sinceDay = Number.isFinite(firstMs) ? sqlTime(firstMs).slice(0, 10) : null;
   for (const [key, n] of pending) {
     const [org, kind] = key.split('|');
     if (Number(org) !== orgId) continue;
