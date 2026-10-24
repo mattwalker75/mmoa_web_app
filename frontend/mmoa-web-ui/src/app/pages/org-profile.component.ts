@@ -4,6 +4,7 @@ import { Title } from '@angular/platform-browser';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
+import { MetricsService } from '../core/metrics.service';
 import { PublicOrg } from '../core/models';
 import { S } from '../core/strings';
 import { OrgViewComponent } from '../shared/org-view.component';
@@ -32,6 +33,7 @@ export class OrgProfileComponent {
   private api = inject(ApiService);
   private route = inject(ActivatedRoute);
   private title = inject(Title);
+  private metrics = inject(MetricsService);
   S = S;
   org = signal<PublicOrg | null>(null);
   state = signal<'loading' | 'ok' | 'missing' | 'error'>('loading');
@@ -51,6 +53,10 @@ export class OrgProfileComponent {
       this.org.set(res.org);
       this.title.setTitle(`${res.org.name} · Need Help? · Mission Men of Anna`);
       this.state.set('ok');
+      // One 'view' per load of the real public page. The console preview
+      // (/need-help/preview/:id, OrgPreviewComponent) never comes here, and a
+      // preview-flagged payload is not counted either.
+      if (!(res as { preview?: boolean }).preview) this.metrics.track(res.org.org_id, 'view');
     } catch (err) {
       if (mine === this.seq) this.state.set(err instanceof HttpErrorResponse && err.status === 404 ? 'missing' : 'error');
     }

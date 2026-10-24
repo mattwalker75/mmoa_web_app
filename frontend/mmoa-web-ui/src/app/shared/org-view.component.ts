@@ -1,6 +1,7 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
 import { PublicOrg } from '../core/models';
 import { S } from '../core/strings';
+import { Kind, MetricsService } from '../core/metrics.service';
 
 /**
  * The body of a nonprofit's public profile — used by /need-help/org/:id and
@@ -28,9 +29,9 @@ import { S } from '../core/strings';
       </div>
 
       <div class="btn-row">
-        @if (org.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(org.phone, org.phone_ext)">{{ S.call }} {{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a> }
-        @if (org.map_url) { <a class="btn btn-outline" [href]="org.map_url" target="_blank" rel="noopener noreferrer">{{ S.directions }}</a> }
-        @if (org.website_url) { <a class="btn btn-ghost" [href]="org.website_url" target="_blank" rel="noopener noreferrer">{{ S.website }}</a> }
+        @if (org.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(org.phone, org.phone_ext)" (click)="hit('call')">{{ S.call }} {{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a> }
+        @if (org.map_url) { <a class="btn btn-outline" [href]="org.map_url" target="_blank" rel="noopener noreferrer" (click)="hit('directions')">{{ S.directions }}</a> }
+        @if (org.website_url) { <a class="btn btn-ghost" [href]="org.website_url" target="_blank" rel="noopener noreferrer" (click)="hit('website')">{{ S.website }}</a> }
       </div>
 
       @if (org.description_html) {
@@ -47,12 +48,12 @@ import { S } from '../core/strings';
         <dl class="kv">
           @if (org.address) { <dt>{{ S.address }}</dt><dd>{{ org.address.text }}</dd> }
           @if (org.hours) { <dt>{{ S.hours }}</dt><dd style="white-space:pre-line">{{ org.hours }}</dd> }
-          @if (org.phone) { <dt>{{ S.phone }}</dt><dd><a [href]="'tel:' + tel(org.phone, org.phone_ext)">{{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a></dd> }
-          @if (org.public_email) { <dt>{{ S.email }}</dt><dd><a [href]="'mailto:' + org.public_email">{{ org.public_email }}</a></dd> }
-          @if (org.website_url) { <dt>{{ S.website }}</dt><dd><a [href]="org.website_url" target="_blank" rel="noopener noreferrer">{{ host(org.website_url) }}</a></dd> }
-          @if (org.facebook_url) { <dt>{{ S.facebook }}</dt><dd><a [href]="org.facebook_url" target="_blank" rel="noopener noreferrer">{{ host(org.facebook_url) }}</a></dd> }
-          @if (org.instagram_url) { <dt>{{ S.instagram }}</dt><dd><a [href]="org.instagram_url" target="_blank" rel="noopener noreferrer">{{ host(org.instagram_url) }}</a></dd> }
-          @if (org.other_social_url) { <dt>{{ S.otherLink }}</dt><dd><a [href]="org.other_social_url" target="_blank" rel="noopener noreferrer">{{ host(org.other_social_url) }}</a></dd> }
+          @if (org.phone) { <dt>{{ S.phone }}</dt><dd><a [href]="'tel:' + tel(org.phone, org.phone_ext)" (click)="hit('call')">{{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a></dd> }
+          @if (org.public_email) { <dt>{{ S.email }}</dt><dd><a [href]="'mailto:' + org.public_email" (click)="hit('email')">{{ org.public_email }}</a></dd> }
+          @if (org.website_url) { <dt>{{ S.website }}</dt><dd><a [href]="org.website_url" target="_blank" rel="noopener noreferrer" (click)="hit('website')">{{ host(org.website_url) }}</a></dd> }
+          @if (org.facebook_url) { <dt>{{ S.facebook }}</dt><dd><a [href]="org.facebook_url" target="_blank" rel="noopener noreferrer" (click)="hit('facebook')">{{ host(org.facebook_url) }}</a></dd> }
+          @if (org.instagram_url) { <dt>{{ S.instagram }}</dt><dd><a [href]="org.instagram_url" target="_blank" rel="noopener noreferrer" (click)="hit('instagram')">{{ host(org.instagram_url) }}</a></dd> }
+          @if (org.other_social_url) { <dt>{{ S.otherLink }}</dt><dd><a [href]="org.other_social_url" target="_blank" rel="noopener noreferrer" (click)="hit('other_link')">{{ host(org.other_social_url) }}</a></dd> }
           @if (org.service_cities?.length) { <dt>{{ S.citiesServed }}</dt><dd>{{ org.service_cities!.join(', ') }}</dd> }
         </dl>
       </section>
@@ -65,8 +66,8 @@ import { S } from '../core/strings';
               <div class="ben">
                 {{ c.name }}
                 @if (c.role) { <div class="s">{{ c.role }}</div> }
-                @if (c.phone) { <div class="s"><a [href]="'tel:' + tel(c.phone, c.phone_ext)">{{ c.phone }}{{ c.phone_ext ? ' ext. ' + c.phone_ext : '' }}</a></div> }
-                @if (c.email) { <div class="s"><a [href]="'mailto:' + c.email">{{ c.email }}</a></div> }
+                @if (c.phone) { <div class="s"><a [href]="'tel:' + tel(c.phone, c.phone_ext)" (click)="hit('call')">{{ c.phone }}{{ c.phone_ext ? ' ext. ' + c.phone_ext : '' }}</a></div> }
+                @if (c.email) { <div class="s"><a [href]="'mailto:' + c.email" (click)="hit('email')">{{ c.email }}</a></div> }
               </div>
             }
           </div>
@@ -91,9 +92,13 @@ import { S } from '../core/strings';
 })
 export class OrgViewComponent {
   @Input({ required: true }) org!: PublicOrg;
-  /** Inside the portal preview: no page-level <h1> (the portal has its own). */
+  /** Inside the portal / console preview: no page-level <h1> (the portal has its own) and no activity tracking. */
   @Input() preview = false;
+  private metrics = inject(MetricsService);
   S = S;
+
+  /** Count a link click for the org's activity card — not from a preview. */
+  hit(kind: Kind) { if (!this.preview) this.metrics.track(this.org.org_id, kind); }
   /** tel: target; a "," pause before the extension makes phones dial it after connecting. */
   tel(p: string, ext?: string | null) { const d = p.replace(/\D/g, ''); return (d.length === 10 ? '+1' + d : d) + (ext ? ',' + ext : ''); }
   host(u: string) { try { const x = new URL(u); return (x.host + x.pathname).replace(/\/$/, ''); } catch { return u; } }

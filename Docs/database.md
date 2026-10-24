@@ -159,6 +159,15 @@ never duplicates them. No sample events/raffles/orgs are seeded; for a demo
 run `node scripts/seed-sample-data.js` (and `--remove` to undo).
 
 **Admin console**
+- **`org_metrics`** — anonymous usage counts per nonprofit
+  (`helpers/orgMetrics.js`): `kind` (`search` = appeared in Need Help results,
+  `view` = profile opened, `call` / `directions` / `website` / `email` /
+  `facebook` / `instagram` / `other_link` = that link used), `bucket`
+  (`hour` | `day` | `week`), `bucket_start` (UTC), `n`. Counted in memory,
+  written hourly; a daily rollup turns hours older than 7 days into days,
+  days older than 28 days into weeks (Monday UTC), and deletes rows older
+  than 5 years. No visitor data of any kind. Read by `GET /api/portal/metrics`
+  (own org) and the console's "Nonprofit activity" report.
 - **`admin_audit`** — written only by the admin console (this app just
   creates the table): `audit_id`, `at` (UTC), `admin` (console login),
   `action` (dotted, e.g. `event.publish`), `target_kind` / `target_id` /

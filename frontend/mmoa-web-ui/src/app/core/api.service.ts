@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   PublicConfig, User, SiteInfo, EventItem, Raffle, BoardMember, Category, City,
-  SearchResponse, PublicOrg, OrgPreview, PortalPayload, OrgImage, LinkSentResponse
+  SearchResponse, PublicOrg, OrgPreview, PortalPayload, OrgImage, LinkSentResponse, PortalMetrics
 } from './models';
 
 /**
@@ -59,6 +59,8 @@ export class ApiService {
 
   // Nonprofit portal
   portalOrg(): Observable<PortalPayload> { return this.http.get<PortalPayload>('/api/portal/org', this.opts); }
+  /** Activity counts for the signed-in org's profile (searches, views, link clicks). */
+  portalMetrics(): Observable<PortalMetrics> { return this.http.get<PortalMetrics>('/api/portal/metrics', this.opts); }
   savePortalOrg(body: Record<string, unknown>): Observable<PortalPayload> {
     return this.http.put<PortalPayload>('/api/portal/org', body, this.opts);
   }

@@ -24,6 +24,7 @@ const orgsHelper = require('../helpers/orgs');
 const orgCache = require('../helpers/orgCache');
 
 const fmt = require('../helpers/formats');
+const orgMetrics = require('../helpers/orgMetrics');
 const ZIP_RE = /^\d{5}(-\d{4})?$/;
 const MAX_CONTACTS = 10;
 
@@ -340,6 +341,16 @@ module.exports = function (db, appConfig, { requireVerified }) {
       orgCache.invalidate();
       res.json({ ok: true, images: await imagesPayload(orgId) });
     } catch (err) { fail(res, err, 'image delete'); }
+  });
+
+  // ── Usage counts for the signed-in org ────────────────────────────────
+  // How often the profile appeared in search, was opened, and each link was
+  // used — last 7 / 30 / 365 days plus a 30-day daily series. Own org only
+  // (myOrgId); see helpers/orgMetrics.js for what is and isn't recorded.
+  router.get('/metrics', async (req, res) => {
+    try {
+      res.json(await orgMetrics.summary(db, await myOrgId(req)));
+    } catch (err) { fail(res, err, 'metrics'); }
   });
 
   return router;

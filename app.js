@@ -29,6 +29,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieSession = require('cookie-session');
 const rateLimit = require('express-rate-limit');
+const orgMetrics = require('./helpers/orgMetrics');
 
 const { appConfig } = require('./config/appConfig');
 const { init: initDb } = require('./db/database');
@@ -453,6 +454,19 @@ server.listen(port, () => {
     }
   }
   setInterval(() => pruneTokens().catch(e => console.error('[db] token pruning failed:', e.message)), 15 * 60 * 1000).unref();
+
+  // ── nonprofit usage counts (helpers/orgMetrics.js) ─────────────────────
+  // In-memory counters are written once an hour; once a day hours older
+  // than 7 days become day rows, days older than 28 days become week rows,
+  // and rows older than 5 years are deleted. Both also run shortly after
+  // boot so a restart never skips a day.
+  const flushMetrics = () => orgMetrics.flush(db).catch(e => console.error('[metrics] flush failed:', e.message));
+  const rollupMetrics = () => orgMetrics.rollup(db)
+    .then(r => { if (r.hours || r.days || r.purged) console.log(`[metrics] rollup: ${r.hours} hour rows → days, ${r.days} day rows → weeks, ${r.purged} purged`); })
+    .catch(e => console.error('[metrics] rollup failed:', e.message));
+  setInterval(flushMetrics, 60 * 60 * 1000).unref();
+  setInterval(rollupMetrics, 24 * 60 * 60 * 1000).unref();
+  setTimeout(rollupMetrics, 60 * 1000).unref();
 });
 
 // ── Crash safety + graceful shutdown ──────────────────────────────────────
@@ -465,7 +479,9 @@ function shutdown(signal, code = 0) {
   _shuttingDown = true;
   console.log(`[shutdown] ${signal} received — closing server`);
   const force = setTimeout(() => { console.error('[shutdown] forced exit after timeout'); process.exit(code); }, 10000);
-  server.close(() => { clearTimeout(force); console.log('[shutdown] server closed'); process.exit(code); });
+  // Write the current hour's usage counts first (best effort, bounded by `force`).
+  const metricsDone = orgMetrics.flush(db).catch(e => console.error('[metrics] final flush failed:', e.message));
+  server.close(() => metricsDone.then(() => { clearTimeout(force); console.log('[shutdown] server closed'); process.exit(code); }));
 }
 process.on('unhandledRejection', (reason) => {
   console.error('[fatal] UNHANDLED REJECTION (kept alive):', (reason && reason.stack) || reason);

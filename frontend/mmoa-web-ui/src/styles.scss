@@ -478,3 +478,31 @@ dialog.preview-dialog { width: min(96vw, 980px); }
 
 /* Event page opened from the admin console's Preview (?preview=…). */
 .preview-banner { margin: 0 0 18px; padding: 12px 16px; border: 2px dashed var(--primary, #7cd136); border-radius: var(--radius); background: var(--band-bg); color: var(--text); font-size: 16px; }
+
+/* ── Portal: "Your profile activity" (table + 30-day bar chart). The two bar
+   colours are a step darker than the brand green so they sit in the dark
+   card without glare; validated for colour-vision deficiency. ─────────── */
+:root { --chart-1: #5ea821; --chart-2: #3f86c8; }
+.act-scroll { overflow-x: auto; margin: 4px 0 20px; }
+.act-table { border-collapse: collapse; width: 100%; font-size: 16px; }
+.act-table th, .act-table td { padding: 8px 10px; border-top: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.act-table thead th { border-top: 0; color: var(--muted); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; white-space: normal; line-height: 1.2; vertical-align: bottom; }
+.act-table th[scope="row"] { text-align: left; font-weight: 600; color: var(--text-soft); white-space: normal; }
+@media (max-width: 480px) { .act-table th, .act-table td { padding: 8px 5px; } .act-table thead th { font-size: 13px; } }
+.act-table tbody tr:nth-child(-n+2) th[scope="row"] { color: var(--text); font-weight: 700; }
+.act-table tbody tr:nth-child(3) th, .act-table tbody tr:nth-child(3) td { border-top-color: var(--line-strong); }
+.act-chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+.act-h3 { font-size: 18px; margin: 0; font-family: var(--font); font-weight: 700; text-transform: none; }
+.act-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; color: var(--muted); }
+.act-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.act-legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.act-legend .sw-view { background: var(--chart-1); }
+.act-legend .sw-click { background: var(--chart-2); }
+.act-chart { display: block; width: 100%; margin-top: 8px; overflow: visible; }
+.act-chart .grid { stroke: var(--line); stroke-width: 1; }
+.act-chart .axis { stroke: var(--line-strong); stroke-width: 1; }
+.act-chart .lbl { fill: var(--muted); font-size: 12px; font-family: var(--font); }
+.act-chart .bar-view { fill: var(--chart-1); }
+.act-chart .bar-click { fill: var(--chart-2); }
+.act-chart .hit { fill: transparent; }
+.act-chart g:hover .hit { fill: rgba(255, 255, 255, .06); }

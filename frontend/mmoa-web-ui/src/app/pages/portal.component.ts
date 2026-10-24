@@ -1,11 +1,11 @@
-import { Component, DestroyRef, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, ViewChild, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { SiteService } from '../core/site.service';
-import { City, OrgContact, OrgImage, PortalPayload } from '../core/models';
+import { City, MetricKind, MetricWindow, OrgContact, OrgImage, PortalMetrics, PortalPayload } from '../core/models';
 import { apiError } from '../core/errors';
 import { resizeImage } from '../core/image-resize';
 import { FIELD_RULES, US_STATES, formatPhone, maskInput, normalizeEmail, normalizeExt, typeEin, typeExt, typePhone } from '../core/formats';
@@ -35,13 +35,38 @@ type FormModel = Record<'name' | 'ein' | 'address_line1' | 'address_line2' | 'ci
 /** The editable model at one moment — see snapshot() / apply(). */
 type Snapshot = { f: FormModel; pub: string; listed: boolean; cats: string; cityIds: string; contacts: string };
 
+/** Rows of the "Your profile activity" table, in display order. */
+const METRIC_ROWS: { kind: MetricKind; label: string }[] = [
+  { kind: 'search', label: 'Appeared in search' }, { kind: 'view', label: 'Profile opened' },
+  { kind: 'call', label: 'Call' }, { kind: 'directions', label: 'Directions' }, { kind: 'website', label: 'Website' },
+  { kind: 'email', label: 'Email' }, { kind: 'facebook', label: 'Facebook' }, { kind: 'instagram', label: 'Instagram' },
+  { kind: 'other_link', label: 'Other link' }
+];
+const METRIC_WINDOWS: { key: MetricWindow; label: string }[] = [{ key: '7d', label: 'Last 7 days' }, { key: '30d', label: '30 days' }, { key: '365d', label: '12 months' }];
+
+/** Round a chart maximum up to 1–5, or 1 / 2 / 2.5 / 5 / 10 × a power of ten. */
+function niceMax(v: number): number {
+  if (v <= 5) return Math.max(1, Math.ceil(v));
+  const p = 10 ** Math.floor(Math.log10(v));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+/** "2026-10-23" → "Oct 23" (parsed as a plain calendar day, not UTC). */
+function dayLabel(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!y || !m || !d) return day;
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 /**
  * /portal (NonprofitPortal mockup) — the signed-in nonprofit edits its
  * "Need Help?" profile: organization details, services (categories +
  * cities), what to bring, contacts, photos (≤5; resized in the browser),
  * per-field Public/Hidden switches and the "list my organization" switch,
  * a "Preview public profile" pop-up (the real search card + full profile
- * page, from the last saved data), and login & password.
+ * page, from the last saved data), "Your profile activity" (search /
+ * view / link-click counts from /api/portal/metrics, loaded on its own so a
+ * failure never blocks the page), and login & password.
  * Text fields save together with "Save changes"; photo changes save at once.
  */
 @Component({
@@ -308,6 +333,56 @@ type Snapshot = { f: FormModel; pub: string; listed: boolean; cats: string; city
               </button>
             </div>
 
+            <!-- Activity -->
+            <section id="activity" class="card" aria-labelledby="h-act">
+              <h2 id="h-act">Your profile activity</h2>
+              <p class="muted" style="margin-top:0">Counts of how often your profile appeared in Need Help searches, was opened, and how often each of your links was used. No personal data about visitors is collected.</p>
+              @if (metricsState() === 'error') {
+                <p class="muted" style="margin:0">Activity is not available right now.</p>
+              } @else if (metricsState() === 'loading') {
+                <span class="spinner light" role="status" aria-label="Loading activity"></span>
+              } @else if (metrics(); as m) {
+                @if (!m.since) {
+                  <p class="soft" style="margin:0">No activity recorded yet — counts start once your profile is live.</p>
+                } @else {
+                  <div class="act-scroll">
+                    <table class="act-table">
+                      <caption class="sr-only">Activity counts by period</caption>
+                      <thead><tr><th scope="col"><span class="sr-only">Activity</span></th>@for (w of metricWindows; track w.key) { <th scope="col">{{ w.label }}</th> }</tr></thead>
+                      <tbody>
+                        @for (r of metricRows; track r.kind) {
+                          <tr><th scope="row">{{ r.label }}</th>@for (w of metricWindows; track w.key) { <td>{{ total(m, w.key, r.kind) }}</td> }</tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="act-chart-head">
+                    <h3 class="act-h3">Last 30 days</h3>
+                    <ul class="act-legend" aria-hidden="true"><li><span class="sw sw-view"></span>Profile opened</li><li><span class="sw sw-click"></span>Links used</li></ul>
+                  </div>
+                  <div #chartWrap>
+                    @if (chart(); as c) {
+                      <svg class="act-chart" [attr.viewBox]="'0 0 ' + c.w + ' ' + c.h" [attr.height]="c.h" role="img" [attr.aria-label]="c.summary">
+                        @for (g of c.grid; track g.v) {
+                          <line class="grid" [attr.x1]="c.x0" [attr.x2]="c.x1" [attr.y1]="g.y" [attr.y2]="g.y" />
+                          <text class="lbl" [attr.x]="c.x0 - 6" [attr.y]="g.y + 4" text-anchor="end">{{ g.v }}</text>
+                        }
+                        @for (d of c.days; track d.day) {
+                          <g>
+                            <title>{{ d.title }}</title>
+                            <rect class="hit" [attr.x]="d.x - 2" y="0" [attr.width]="d.slot" [attr.height]="c.base" />
+                            @if (d.vh) { <rect class="bar-view" [attr.x]="d.x" [attr.y]="c.base - d.vh" [attr.width]="d.bw" [attr.height]="d.vh" rx="1.5" /> }
+                            @if (d.ch) { <rect class="bar-click" [attr.x]="d.x + d.bw + 2" [attr.y]="c.base - d.ch" [attr.width]="d.bw" [attr.height]="d.ch" rx="1.5" /> }
+                          </g>
+                        }
+                        <line class="axis" [attr.x1]="c.x0" [attr.x2]="c.x1" [attr.y1]="c.base" [attr.y2]="c.base" />
+                        @for (t of c.ticks; track t.x) { <text class="lbl" [attr.x]="t.x" [attr.y]="c.h - 4" [attr.text-anchor]="t.anchor">{{ t.label }}</text> }
+                      </svg>
+                    }
+                  </div>
+                }
+              }
+            </section>
 
             <!-- Login & password -->
             <section id="login" class="card" aria-labelledby="h-login">
@@ -353,7 +428,7 @@ export class PortalComponent implements HasUnsavedChanges {
     { id: 'organization', label: 'Organization' }, { id: 'services', label: 'Services we provide' },
     { id: 'keywords', label: 'Search keywords' },
     { id: 'bring', label: 'What to bring' }, { id: 'contacts', label: 'Contacts' }, { id: 'photos', label: 'Photos' },
-    { id: 'visibility', label: 'Visibility' }, { id: 'login', label: 'Login & password' }
+    { id: 'visibility', label: 'Visibility' }, { id: 'activity', label: 'Your profile activity' }, { id: 'login', label: 'Login & password' }
   ];
   textRows = TEXT_ROWS;
 
@@ -399,6 +474,16 @@ export class PortalComponent implements HasUnsavedChanges {
     window.addEventListener('beforeunload', warn);
     inject(DestroyRef).onDestroy(() => window.removeEventListener('beforeunload', warn));
     this.load();
+    this.loadMetrics();
+    // Size the activity chart to its box (SVG units = CSS px, so the labels
+    // stay legible at any width) and follow resizes.
+    afterRenderEffect(onCleanup => {
+      const el = this.chartWrap()?.nativeElement;
+      if (!el || typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(() => { const w = Math.floor(el.clientWidth); if (w > 0) this.chartW.set(w); });
+      ro.observe(el);
+      onCleanup(() => ro.disconnect());
+    });
   }
 
   markDirty() { this.dirty.set(true); }
@@ -611,6 +696,54 @@ export class PortalComponent implements HasUnsavedChanges {
       if (cur) this.data.set({ ...cur, preview: p.preview, isPublic: p.isPublic, adminHidden: p.adminHidden });
     } catch { /* preview just stays as it was */ }
   }
+
+  // ── Activity (read-only; loads on its own, never blocks the page) ──────
+  metricRows = METRIC_ROWS;
+  metricWindows = METRIC_WINDOWS;
+  metrics = signal<PortalMetrics | null>(null);
+  metricsState = signal<'loading' | 'ok' | 'error'>('loading');
+  chartWrap = viewChild<ElementRef<HTMLDivElement>>('chartWrap');
+  private chartW = signal(0);
+
+  private async loadMetrics() {
+    try {
+      this.metrics.set(await firstValueFrom(this.api.portalMetrics()));
+      this.metricsState.set('ok');
+    } catch {
+      this.metricsState.set('error');
+    }
+  }
+
+  total(m: PortalMetrics, w: MetricWindow, kind: MetricKind): string { return (m.totals?.[w]?.[kind] ?? 0).toLocaleString('en-US'); }
+
+  /** Geometry for the last-30-days bar chart (two thin bars per day: profile
+   *  opened + links used). Null until the chart box has a width. */
+  chart = computed(() => {
+    const m = this.metrics();
+    const w = this.chartW();
+    if (!m?.daily?.length || !w) return null;
+    const days = m.daily.slice(-30);
+    const h = 190, x0 = 34, x1 = w - 6, top = 12, base = 164;
+    const max = niceMax(Math.max(1, ...days.map(d => Math.max(d.view || 0, d.clicks || 0))));
+    const scale = (base - top) / max;
+    const slot = (x1 - x0) / days.length;
+    const bw = Math.max(2, Math.floor((slot - 6) / 2));
+    const yOf = (v: number) => Math.round(base - v * scale);
+    const grid = [{ v: max, y: yOf(max) }];
+    if (max >= 2 && Number.isInteger(max / 2)) grid.push({ v: max / 2, y: yOf(max / 2) });
+    const bar = (v: number) => (v > 0 ? Math.max(2, Math.round(v * scale)) : 0);
+    let views = 0, clicks = 0;
+    const out = days.map((d, i) => {
+      views += d.view || 0; clicks += d.clicks || 0;
+      const label = dayLabel(d.day);
+      return { day: d.day, x: Math.round(x0 + i * slot + (slot - (2 * bw + 2)) / 2), slot, bw, vh: bar(d.view || 0), ch: bar(d.clicks || 0),
+        title: `${label}: ${d.view || 0} profile open${d.view === 1 ? '' : 's'}, ${d.clicks || 0} link use${d.clicks === 1 ? '' : 's'}, in ${d.search || 0} search${d.search === 1 ? '' : 'es'}` };
+    });
+    const tickAt = (i: number, anchor: string) => ({ x: Math.round(x0 + i * slot + slot / 2), label: dayLabel(days[i].day), anchor });
+    const ticks = days.length > 2 ? [tickAt(0, 'start'), tickAt(Math.floor(days.length / 2), 'middle'), tickAt(days.length - 1, 'end')] : days.map((_, i) => tickAt(i, 'middle'));
+    const summary = `Daily chart of the last ${days.length} days: profile opened ${views} time${views === 1 ? '' : 's'}, links used ${clicks} time${clicks === 1 ? '' : 's'}. The table above has the totals.`;
+    return { w, h, x0, x1, base, grid, days: out, ticks, summary };
+  });
 
   // ── Password ────────────────────────────────────────────────────────────
   async changePassword() {

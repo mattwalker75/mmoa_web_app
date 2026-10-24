@@ -205,3 +205,15 @@ export interface LinkSentResponse {
   email?: string;
   devLink?: string;
 }
+
+/** GET /api/portal/metrics — how the public used the org's profile. */
+export type MetricKind = 'search' | 'view' | 'call' | 'directions' | 'website' | 'email' | 'facebook' | 'instagram' | 'other_link';
+export type MetricWindow = '7d' | '30d' | '365d';
+export interface PortalMetrics {
+  kinds: MetricKind[];
+  totals: Record<MetricWindow, Partial<Record<MetricKind, number>>>;
+  /** Last 30 days, oldest first, every day present. clicks = all link kinds together. */
+  daily: { day: string; search: number; view: number; clicks: number }[];
+  /** First day with any data; null when nothing has been recorded yet. */
+  since: string | null;
+}

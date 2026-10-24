@@ -35,6 +35,8 @@ const { renderMarkdownLite } = require('../helpers/markdownLite');
 const { uploadUrl } = require('../helpers/uploads');
 const orgsHelper = require('../helpers/orgs');
 const orgCache = require('../helpers/orgCache');
+const orgMetrics = require('../helpers/orgMetrics');
+const rateLimit = require('express-rate-limit');
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UPCOMING_GRACE_MS = 12 * 3600 * 1000; // an event stays "upcoming" until 12 h after it starts
@@ -420,6 +422,9 @@ module.exports = function (db, appConfig) {
         ((catHits.get(b) || 0) - (catHits.get(a) || 0)) ||
         ((scores.get(b) || 0) - (scores.get(a) || 0)) ||
         a.name.localeCompare(b.name));
+      // Usage counts: each org shown in this result list "appeared in search"
+      // (helpers/orgMetrics.js; totals only, nothing about the visitor).
+      for (const p of results) orgMetrics.bump(p.org_id, 'search');
       res.json({
         categories: cats.map(c => ({ slug: c.slug, name: c.name })),
         // Single-category shape kept for older callers: the first selection.
@@ -461,6 +466,35 @@ module.exports = function (db, appConfig) {
     if (!hit || !orgsHelper.isPublic(hit.org)) return null;
     return { org: hit.pub };
   }
+
+  // ── Usage beacon ───────────────────────────────────────────────────────
+  // POST /api/metrics { events: [{ org, kind }] } from the SPA
+  // (navigator.sendBeacon) when a visitor opens a profile or uses one of its
+  // links. Anonymous totals only (helpers/orgMetrics.js). Only kinds the
+  // client may report, only orgs that are public right now (so a guessed or
+  // stale id counts nothing), at most 20 events a call, and a per-IP cap so
+  // a script can't inflate a nonprofit's numbers quickly. Always 204.
+  const beaconLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: false, legacyHeaders: false,
+    handler: (req, res) => res.status(204).end() });
+  // sendBeacon may send the body as text/plain (a string instead of a typed
+  // Blob), which express.json skips — parse that here.
+  const beaconText = express.text({ type: 'text/plain', limit: '16kb' });
+  router.post('/metrics', beaconLimiter, beaconText, async (req, res) => {
+    try {
+      let body = req.body;
+      if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
+      const events = Array.isArray(body && body.events) ? body.events.slice(0, 20) : [];
+      if (events.length) {
+        const live = new Set((await publicOrgs()).map(e => e.org.org_id));
+        for (const ev of events) {
+          const org = Number(ev && ev.org);
+          const kind = String((ev && ev.kind) || '');
+          if (Number.isInteger(org) && live.has(org) && orgMetrics.BEACON_KINDS.includes(kind)) orgMetrics.bump(org, kind);
+        }
+      }
+    } catch (e) { /* a metrics problem must never surface to a visitor */ }
+    res.status(204).end();
+  });
 
   router.get('/directory/orgs/:id', async (req, res) => {
     try {

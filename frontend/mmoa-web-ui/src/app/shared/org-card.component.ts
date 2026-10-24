@@ -1,14 +1,16 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PublicOrg } from '../core/models';
 import { S } from '../core/strings';
+import { Kind, MetricsService } from '../core/metrics.service';
 
 /**
  * One nonprofit as it appears in "Need Help?" search results. Shared by the
  * search page and the portal's "Preview public profile" dialog, so the
  * preview is exactly the card the public sees. `highlight` lists category
  * slugs to mark as matching (the search's selected needs). `preview` turns
- * the profile links into plain text (they would leave the portal).
+ * the profile links into plain text (they would leave the portal) and turns off
+ * activity tracking (see MetricsService).
  */
 @Component({
   selector: 'app-org-card',
@@ -29,9 +31,9 @@ import { S } from '../core/strings';
         <div class="inset"><div class="bring-title">{{ S.whatToBring }}</div><div class="soft">{{ org.what_to_bring!.join(' · ') }}</div></div>
       }
       <div class="btn-row" style="gap:10px">
-        @if (org.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(org.phone, org.phone_ext)">{{ S.call }} {{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a> }
-        @if (org.map_url) { <a class="btn btn-outline" [href]="org.map_url" target="_blank" rel="noopener noreferrer">{{ S.directions }}</a> }
-        @if (org.website_url) { <a [href]="org.website_url" target="_blank" rel="noopener noreferrer" style="font-weight:700;padding:10px 6px">{{ S.website }}</a> }
+        @if (org.phone) { <a class="btn btn-primary" [href]="'tel:' + tel(org.phone, org.phone_ext)" (click)="hit('call')">{{ S.call }} {{ org.phone }}{{ org.phone_ext ? ' ext. ' + org.phone_ext : '' }}</a> }
+        @if (org.map_url) { <a class="btn btn-outline" [href]="org.map_url" target="_blank" rel="noopener noreferrer" (click)="hit('directions')">{{ S.directions }}</a> }
+        @if (org.website_url) { <a [href]="org.website_url" target="_blank" rel="noopener noreferrer" style="font-weight:700;padding:10px 6px" (click)="hit('website')">{{ S.website }}</a> }
         @if (preview) { <span style="font-weight:700;padding:10px 6px;color:var(--link)">{{ S.fullProfile }}</span> }
         @else { <a [routerLink]="['/need-help/org', org.org_id]" style="font-weight:700;padding:10px 6px">{{ S.fullProfile }}<span class="sr-only">: {{ org.name }}</span></a> }
         @if (where()) { <span class="muted" style="font-size:16px">{{ where() }}</span> }
@@ -43,7 +45,11 @@ export class OrgCardComponent {
   @Input({ required: true }) org!: PublicOrg;
   @Input() highlight: string[] = [];
   @Input() preview = false;
+  private metrics = inject(MetricsService);
   S = S;
+
+  /** Count a link click for the org's activity card — not from a preview. */
+  hit(kind: Kind) { if (!this.preview) this.metrics.track(this.org.org_id, kind); }
 
   /** tel: target; a "," pause before the extension makes phones dial it after connecting. */
   tel(p: string, ext?: string | null) { const d = p.replace(/\D/g, ''); return (d.length === 10 ? '+1' + d : d) + (ext ? ',' + ext : ''); }

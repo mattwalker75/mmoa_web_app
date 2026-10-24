@@ -383,3 +383,16 @@ CREATE TABLE IF NOT EXISTS admin_audit (
     INDEX idx_admin_audit_admin (admin, at),
     INDEX idx_admin_audit_action (action, at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- org_metrics — anonymous usage counts per nonprofit; see setup_sqlite_db.sql.
+CREATE TABLE IF NOT EXISTS org_metrics (
+    metric_id    INT AUTO_INCREMENT PRIMARY KEY,
+    org_id       INT NOT NULL,
+    kind         VARCHAR(20) NOT NULL,
+    bucket       VARCHAR(4) NOT NULL,
+    bucket_start TIMESTAMP NOT NULL,
+    n            INT NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_org_metrics (org_id, kind, bucket, bucket_start),
+    INDEX idx_org_metrics_start (bucket, bucket_start),
+    INDEX idx_org_metrics_org (org_id, bucket_start)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

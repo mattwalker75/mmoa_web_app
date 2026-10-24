@@ -455,3 +455,25 @@ CREATE TABLE IF NOT EXISTS admin_audit (
 CREATE INDEX IF NOT EXISTS idx_admin_audit_at ON admin_audit(at);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_admin ON admin_audit(admin, at);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit(action, at);
+
+-- ----------------------------------------------------------------------------
+-- org_metrics — anonymous usage counts per nonprofit (helpers/orgMetrics.js).
+-- kind: search (appeared in Need Help results) | view (profile opened) | call |
+-- directions | website | email | facebook | instagram | other_link (link used).
+-- Counted in memory and written once an hour into 'hour' buckets; a daily
+-- rollup turns hours older than 7 days into 'day' rows, days older than 28
+-- days into 'week' rows (weeks start Monday UTC), and deletes anything older
+-- than 5 years. bucket_start is UTC 'YYYY-MM-DD HH:MM:SS'. Read by the
+-- nonprofit portal (its own org only) and the console's Reports.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS org_metrics (
+    metric_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id       INTEGER NOT NULL,
+    kind         TEXT NOT NULL,
+    bucket       TEXT NOT NULL,              -- 'hour' | 'day' | 'week'
+    bucket_start TIMESTAMP NOT NULL,
+    n            INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (org_id, kind, bucket, bucket_start)
+);
+CREATE INDEX IF NOT EXISTS idx_org_metrics_start ON org_metrics(bucket, bucket_start);
+CREATE INDEX IF NOT EXISTS idx_org_metrics_org ON org_metrics(org_id, bucket_start);
