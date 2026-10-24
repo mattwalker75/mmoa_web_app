@@ -203,7 +203,19 @@ if (authRl) {
 app.use(require('./helpers/maintenance')(appConfig));
 
 // ── editable website images (the admin console drops files in HTML/images/) ─
-app.use('/content/images', express.static(path.join(__dirname, 'HTML', 'images'), { maxAge: '1h', index: false }));
+// no-cache = revalidate every time (a cheap 304 via the ETag): website
+// images are replaced in place under the same name (editor, Image Restore),
+// so a fixed max-age kept showing the old picture for up to an hour.
+// SVGs also get a sandbox CSP, so even with the site's CSP turned off an
+// SVG opened directly can't run script on this origin.
+app.use('/content/images', express.static(path.join(__dirname, 'HTML', 'images'), {
+  index: false,
+  cacheControl: false,
+  setHeaders(res, filePath) {
+    res.set('Cache-Control', 'no-cache');
+    if (/\.svg$/i.test(filePath)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  }
+}));
 
 // ── uploaded images (uploads/{events,raffles,orgs,board}/) ──────────────
 // Written by the portal (orgs) and the admin console (events, raffles,
