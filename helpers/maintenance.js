@@ -49,16 +49,20 @@ function readState() {
   return state;
 }
 
-// ── logo as a data URI (read once, lazily) ───────────────────────────────
-let logoDataUri = null;
+// ── logo as a data URI (re-read when the file changes) ───────────────────
+// Keyed by mtime: a logo uploaded, replaced or restored (Image Restore,
+// Full Restore) shows on the maintenance page without a restart.
+let logoCache = { mtimeMs: -1, uri: '' };
 function getLogoDataUri() {
-  if (logoDataUri !== null) return logoDataUri;
+  let st;
+  try { st = fs.statSync(LOGO_FILE); } catch { logoCache = { mtimeMs: -1, uri: '' }; return ''; }
+  if (st.mtimeMs === logoCache.mtimeMs) return logoCache.uri;
   try {
-    logoDataUri = 'data:image/png;base64,' + fs.readFileSync(LOGO_FILE).toString('base64');
+    logoCache = { mtimeMs: st.mtimeMs, uri: 'data:image/png;base64,' + fs.readFileSync(LOGO_FILE).toString('base64') };
   } catch {
-    logoDataUri = '';
+    logoCache = { mtimeMs: st.mtimeMs, uri: '' };
   }
-  return logoDataUri;
+  return logoCache.uri;
 }
 
 function escapeHtml(s) {
