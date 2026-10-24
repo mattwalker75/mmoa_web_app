@@ -61,8 +61,23 @@ if [ -f "$PID_FILE" ]; then
     rm -f "$PID_FILE"
   fi
 fi
+# Whoever listens on PORT counts only if it is a node app.js running from
+# THIS install directory — another site on the same machine (e.g. a config
+# restored from a different server that names its port) must never be
+# stopped by this script.
+HERE="$(pwd -P)"
+pid_cwd() {
+  if [ -r "/proc/$1/cwd" ]; then readlink "/proc/$1/cwd" 2>/dev/null
+  else lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1; fi
+}
 if command -v lsof >/dev/null 2>&1; then
-  PIDS="$PIDS $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null)"
+  for lp in $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null); do
+    if app_pid_alive "$lp" && [ "$(cd "$(pid_cwd "$lp")" 2>/dev/null && pwd -P)" = "$HERE" ]; then
+      PIDS="$PIDS $lp"
+    else
+      echo "[stop] port $PORT is held by PID $lp, which is not this install ($HERE) — leaving it alone."
+    fi
+  done
 fi
 
 # De-duplicate and keep only PIDs that are actually alive.
