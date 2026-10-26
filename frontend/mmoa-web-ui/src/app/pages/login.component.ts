@@ -33,7 +33,7 @@ import { apiError, apiCode } from '../core/errors';
             <a class="hint" routerLink="/forgot-password">Forgot your password?</a>
           </div>
           <button class="btn btn-primary btn-block" type="submit" [disabled]="loading()">
-            @if (loading()) { <span class="spinner"></span> } @else { Sign in }
+            @if (loading()) { <span class="spinner" role="status" aria-label="Signing in"></span> } @else { Sign in }
           </button>
         </form>
 

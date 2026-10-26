@@ -42,8 +42,10 @@ export class ApiService {
   directoryMeta(): Observable<{ categories: Category[]; cities: City[] }> {
     return this.http.get<{ categories: Category[]; cities: City[] }>('/api/directory/meta', this.opts);
   }
-  directorySearch(q: { categories?: string[]; city?: string; q?: string }): Observable<SearchResponse> {
+  /** count: false = just listing orgs (home carousel) — not counted as a search. */
+  directorySearch(q: { categories?: string[]; city?: string; q?: string; count?: boolean }): Observable<SearchResponse> {
     let params = new HttpParams();
+    if (q.count === false) params = params.set('count', '0');
     if (q.categories?.length) params = params.set('category', q.categories.join(','));
     if (q.city) params = params.set('city', q.city);
     if (q.q) params = params.set('q', q.q);

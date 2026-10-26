@@ -30,7 +30,7 @@ import { apiError } from '../core/errors';
         <div class="btn-row" style="justify-content:center;margin-top:8px">
           <a class="btn btn-primary" routerLink="/login">Go to sign in</a>
           <button class="btn btn-ghost" (click)="resend()" [disabled]="sending() || !email()">
-            @if (sending()) { <span class="spinner light"></span> } @else { Resend email }
+            @if (sending()) { <span class="spinner light" role="status" aria-label="Sending"></span> } @else { Resend email }
           </button>
         </div>
         <p class="muted small" style="margin-top:16px">Didn't get it? Check your spam folder.</p>

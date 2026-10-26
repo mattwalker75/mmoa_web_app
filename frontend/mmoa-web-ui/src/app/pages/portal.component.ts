@@ -94,7 +94,7 @@ function dayLabel(day: string): string {
         @case ('rejected') {
           <div class="banner banner-bad" role="status"><div class="container">
             <strong>We couldn't verify your organization.</strong>
-            <span>Your profile isn't shown in "Need Help?". @if (site.phone()) {Please call us at <a [href]="'tel:' + site.phoneTel()" style="color:inherit">{{ site.phone() }}</a>} @else if (site.email()) {Please email us at <a [href]="'mailto:' + site.email()" style="color:inherit">{{ site.email() }}</a>} @else {Please message us on <a [href]="site.info().facebookUrl" target="_blank" rel="noopener" style="color:inherit">Facebook</a>} so we can sort it out.</span>
+            <span>Your profile isn't shown in "Need Help?". @if (site.phone()) {Please call us at <a [href]="'tel:' + site.phoneTel()" style="color:inherit">{{ site.phone() }}</a>} @else if (site.email()) {Please email us at <a [href]="'mailto:' + site.email()" style="color:inherit">{{ site.email() }}</a>} @else if (site.facebook()) {Please message us on <a [href]="site.facebook()" target="_blank" rel="noopener" style="color:inherit">Facebook</a>} @else {Please contact Mission Men of Anna} so we can sort it out.</span>
           </div></div>
         }
         @default {
@@ -120,7 +120,12 @@ function dayLabel(day: string): string {
             }
           </nav>
 
-          <form class="portal-main" (ngSubmit)="save()" novalidate>
+          <!-- Two forms in one column: the profile (Enter / "Save changes" →
+               save()) and the password change (Enter / "Update password" →
+               changePassword()), so Enter in a password box never saves the
+               profile instead. display:contents keeps the column layout. -->
+          <div class="portal-main">
+          <form class="contents-form" (ngSubmit)="save()" novalidate>
             <!-- Organization -->
             <section id="organization" class="card" aria-labelledby="h-org" (input)="markDirty()">
               <div class="result-head">
@@ -296,7 +301,7 @@ function dayLabel(day: string): string {
                   <div class="photo-tile">
                     <img [src]="img.url" [alt]="img.alt || 'Photo ' + (i + 1)">
                     <label class="sr-only" [for]="'alt-' + img.image_id">Description of photo {{ i + 1 }}</label>
-                    <input class="input" [id]="'alt-' + img.image_id" [name]="'alt-' + img.image_id" maxlength="300" placeholder="Describe this photo" [ngModel]="img.alt" (change)="saveAlt(img, $event)">
+                    <input class="input" [id]="'alt-' + img.image_id" [name]="'alt-' + img.image_id" maxlength="300" placeholder="Describe this photo" [ngModel]="img.alt" (change)="saveAlt(img, $event)" (keydown.enter)="$event.preventDefault(); $any($event.target).blur()">
                     <div class="tools">
                       <button type="button" (click)="move(i, -1)" [disabled]="first || photoBusy()" [attr.aria-label]="'Move photo ' + (i + 1) + ' earlier'">←</button>
                       <button type="button" (click)="move(i, 1)" [disabled]="last || photoBusy()" [attr.aria-label]="'Move photo ' + (i + 1) + ' later'">→</button>
@@ -332,6 +337,7 @@ function dayLabel(day: string): string {
                 @if (saving()) { <span class="spinner" role="status" aria-label="Saving"></span> } @else { Save changes }
               </button>
             </div>
+          </form>
 
             <!-- Activity -->
             <section id="activity" class="card" aria-labelledby="h-act">
@@ -385,6 +391,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- Login & password -->
+            <form class="contents-form" (ngSubmit)="changePassword()" novalidate>
             <section id="login" class="card" aria-labelledby="h-login">
               <h2 id="h-login">Login &amp; password</h2>
               @if (data()!.account; as a) {
@@ -393,7 +400,7 @@ function dayLabel(day: string): string {
                   <dt>Login name</dt><dd>{{ a.login_name }}</dd>
                   <dt>Login email</dt><dd>{{ a.email }}</dd>
                 </dl>
-                <p class="muted small">To change the contact name or login email, @if (site.phone()) {call MMoA at {{ site.phone() }}.} @else if (site.email()) {email MMoA at {{ site.email() }}.} @else {message MMoA on <a [href]="site.info().facebookUrl" target="_blank" rel="noopener">Facebook</a>.}</p>
+                <p class="muted small">To change the contact name or login email, @if (site.phone()) {call MMoA at {{ site.phone() }}.} @else if (site.email()) {email MMoA at {{ site.email() }}.} @else if (site.facebook()) {message MMoA on <a [href]="site.facebook()" target="_blank" rel="noopener">Facebook</a>.} @else {contact Mission Men of Anna.}</p>
               }
               <h3 style="font-size:22px">Change password</h3>
               <div aria-live="polite">
@@ -409,9 +416,10 @@ function dayLabel(day: string): string {
                 <div class="field"><label for="pw-new2">Confirm new password</label>
                   <app-password-input inputId="pw-new2" [(value)]="newPw2" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" /></div>
               </div>
-              <button type="button" class="btn btn-outline" (click)="changePassword()" [disabled]="pwBusy()">Update password</button>
+              <button type="submit" class="btn btn-outline" [disabled]="pwBusy()">Update password</button>
             </section>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
     }

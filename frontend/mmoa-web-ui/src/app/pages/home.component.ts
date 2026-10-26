@@ -33,8 +33,8 @@ import { RouteLinksDirective } from '../shared/route-links.directive';
           @for (e of events(); track e.event_id) { <app-event-card [ev]="e" /> }
         </div>
       } @else {
-        <div class="empty">No upcoming events are posted right now — check back soon, or follow us on
-          <a [href]="site.info().facebookUrl" target="_blank" rel="noopener">Facebook</a>.</div>
+        <div class="empty">No upcoming events are posted right now — check back soon@if (site.facebook(); as fb) {, or follow us on
+          <a [href]="fb" target="_blank" rel="noopener">Facebook</a>}.</div>
       }
     </section>
 
@@ -119,7 +119,7 @@ export class HomeComponent {
     if (ev.status === 'fulfilled') this.events.set(ev.value.events.slice(0, 3)); else this.error.set(true);
     if (ra.status === 'fulfilled') this.raffle.set(ra.value.raffles[0] || null);
     this.loading.set(false);
-    try { this.orgs.set((await firstValueFrom(this.api.directorySearch({}))).results); }
+    try { this.orgs.set((await firstValueFrom(this.api.directorySearch({ count: false }))).results); }
     catch { /* no strip — the rest of the page is unaffected */ }
   }
 }

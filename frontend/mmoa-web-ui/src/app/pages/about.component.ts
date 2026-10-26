@@ -74,7 +74,7 @@ import { LogoComponent } from '../shared/logo.component';
           <a class="btn btn-primary btn-lg" routerLink="/partner">Partner with us</a>
           @if (site.phone()) { <a class="btn btn-outline btn-lg" [href]="'tel:' + site.phoneTel()">Call {{ site.phone() }}</a> }
           @if (site.email()) { <a class="btn btn-outline btn-lg" [href]="'mailto:' + site.email()">Email us</a> }
-          <a class="btn btn-outline btn-lg" [href]="site.info().facebookUrl" target="_blank" rel="noopener">Follow us on Facebook</a>
+          @if (site.facebook(); as fb) { <a class="btn btn-outline btn-lg" [href]="fb" target="_blank" rel="noopener">Follow us on Facebook</a> }
         </div>
       </section>
     </div>

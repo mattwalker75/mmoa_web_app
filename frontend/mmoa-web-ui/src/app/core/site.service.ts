@@ -41,6 +41,8 @@ export class SiteService {
   });
   /** The header "Need Help?" button + other links to the directory (on unless turned off). */
   readonly needHelp = computed(() => this.info().needHelpEnabled !== false);
+  /** The Facebook page, or '' when none is set (every Facebook link hides). */
+  readonly facebook = computed(() => (this.info().facebookUrl || '').trim());
   /** tel: target — digits only, +1 for a 10-digit US number. */
   readonly phoneTel = computed(() => {
     const d = this.phone().replace(/\D/g, '');
@@ -67,7 +69,16 @@ export class SiteService {
   }
 
   section(key: string): SafeHtml | null {
-    const html = this.info().sections[key];
-    return html ? this.sanitizer.bypassSecurityTrustHtml(html) : null;
+    return this.trustedSections()[key] || null;
   }
+  /** Built once per site load, so [innerHTML] sees the same object on every
+   *  change detection and never re-renders (which would drop focus and text
+   *  selection inside a section). */
+  private readonly trustedSections = computed(() => {
+    const out: Record<string, SafeHtml> = {};
+    for (const [k, html] of Object.entries(this.info().sections || {})) {
+      if (html) out[k] = this.sanitizer.bypassSecurityTrustHtml(html);
+    }
+    return out;
+  });
 }

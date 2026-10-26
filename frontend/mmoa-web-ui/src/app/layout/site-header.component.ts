@@ -55,8 +55,11 @@ export class SiteHeaderComponent {
   site = inject(SiteService);
   private router = inject(Router);
 
+  /** Leave the page first, then sign out — so the portal's "unsaved
+   *  changes" guard still sees a signed-in user and can stop it. */
   async logout() {
+    const left = await this.router.navigateByUrl('/');
+    if (left === false) return; // the visitor chose to stay (unsaved edits)
     await this.auth.logout();
-    this.router.navigateByUrl('/');
   }
 }

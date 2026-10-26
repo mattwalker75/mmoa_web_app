@@ -28,11 +28,11 @@ import { S } from '../core/strings';
           <div class="foot-content">
             <div class="foot-org">
               <div class="foot-brand">Mission Men of Anna</div>
-              <div>A 501(c)(3) nonprofit · EIN {{ site.info().ein }}</div>
+              <div>A 501(c)(3) nonprofit@if (site.info().ein) { · EIN {{ site.info().ein }}}</div>
               <div>Anna, Texas@if (site.phone()) { · <a [href]="'tel:' + site.phoneTel()">{{ site.phone() }}</a>}</div>
             </div>
             <nav class="foot-links" aria-label="Footer">
-              <a [href]="site.info().facebookUrl" target="_blank" rel="noopener">Facebook</a>
+              @if (site.facebook(); as fb) { <a [href]="fb" target="_blank" rel="noopener">Facebook</a> }
               @if (site.info().donationUrl; as url) { <a [href]="url" target="_blank" rel="noopener">Donate</a> }
               <a routerLink="/partner">Partner with us</a>
               <a routerLink="/login">Nonprofit login</a>

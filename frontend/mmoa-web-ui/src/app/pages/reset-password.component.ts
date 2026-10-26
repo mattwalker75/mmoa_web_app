@@ -23,7 +23,7 @@ type LinkState = 'checking' | 'valid' | 'expired' | 'used' | 'superseded' | 'inv
         </div>
 
         @if (state() === 'checking') {
-          <p class="muted center"><span class="spinner"></span> Checking your reset link…</p>
+          <p class="muted center" role="status"><span class="spinner" aria-hidden="true"></span> Checking your reset link…</p>
         } @else if (state() !== 'valid') {
           <!-- Dead link: say why, offer the way out, and never show the form. -->
           <div class="alert alert-error">{{ linkMessage() }}</div>
@@ -44,7 +44,7 @@ type LinkState = 'checking' | 'valid' | 'expired' | 'used' | 'superseded' | 'inv
               <app-password-input inputId="rp-pw2" [(value)]="confirm" [show]="showPw()" (showChange)="showPw.set($event)" autocomplete="new-password" />
             </div>
             <button class="btn btn-primary btn-block" type="submit" [disabled]="loading()">
-              @if (loading()) { <span class="spinner"></span> } @else { Reset password }
+              @if (loading()) { <span class="spinner" role="status" aria-label="Resetting your password"></span> } @else { Reset password }
             </button>
           </form>
         }
