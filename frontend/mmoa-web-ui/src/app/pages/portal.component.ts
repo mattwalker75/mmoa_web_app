@@ -94,7 +94,7 @@ function dayLabel(day: string): string {
         @case ('rejected') {
           <div class="banner banner-bad" role="status"><div class="container">
             <strong>We couldn't verify your organization.</strong>
-            <span>Your profile isn't shown in "Need Help?". @if (site.phone()) {Please call us at <a [href]="'tel:' + site.phoneTel()" style="color:inherit">{{ site.phone() }}</a>} @else if (site.info().email) {Please email us at <a [href]="'mailto:' + site.info().email" style="color:inherit">{{ site.info().email }}</a>} @else {Please message us on <a [href]="site.info().facebookUrl" target="_blank" rel="noopener" style="color:inherit">Facebook</a>} so we can sort it out.</span>
+            <span>Your profile isn't shown in "Need Help?". @if (site.phone()) {Please call us at <a [href]="'tel:' + site.phoneTel()" style="color:inherit">{{ site.phone() }}</a>} @else if (site.email()) {Please email us at <a [href]="'mailto:' + site.email()" style="color:inherit">{{ site.email() }}</a>} @else {Please message us on <a [href]="site.info().facebookUrl" target="_blank" rel="noopener" style="color:inherit">Facebook</a>} so we can sort it out.</span>
           </div></div>
         }
         @default {
@@ -393,7 +393,7 @@ function dayLabel(day: string): string {
                   <dt>Login name</dt><dd>{{ a.login_name }}</dd>
                   <dt>Login email</dt><dd>{{ a.email }}</dd>
                 </dl>
-                <p class="muted small">To change the contact name or login email, @if (site.phone()) {call MMoA at {{ site.phone() }}.} @else if (site.info().email) {email MMoA at {{ site.info().email }}.} @else {message MMoA on <a [href]="site.info().facebookUrl" target="_blank" rel="noopener">Facebook</a>.}</p>
+                <p class="muted small">To change the contact name or login email, @if (site.phone()) {call MMoA at {{ site.phone() }}.} @else if (site.email()) {email MMoA at {{ site.email() }}.} @else {message MMoA on <a [href]="site.info().facebookUrl" target="_blank" rel="noopener">Facebook</a>.}</p>
               }
               <h3 style="font-size:22px">Change password</h3>
               <div aria-live="polite">

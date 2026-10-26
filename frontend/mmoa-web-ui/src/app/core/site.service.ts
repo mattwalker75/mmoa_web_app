@@ -27,10 +27,21 @@ export class SiteService {
   readonly info = signal<SiteInfo>(DEFAULTS);
   readonly loaded = signal(false);
 
-  readonly phone = computed(() => this.info().phone);
+  /** The public phone, or '' unless it's a real number (7–15 digits) — every
+   *  "Call" button / phone line on the site shows only when this is set. */
+  readonly phone = computed(() => {
+    const p = (this.info().phone || '').trim();
+    const n = p.replace(/\D/g, '').length;
+    return n >= 7 && n <= 15 ? p : '';
+  });
+  /** The public email, or '' unless it looks like a real address. */
+  readonly email = computed(() => {
+    const e = (this.info().email || '').trim();
+    return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(e) ? e : '';
+  });
   /** tel: target — digits only, +1 for a 10-digit US number. */
   readonly phoneTel = computed(() => {
-    const d = (this.info().phone || '').replace(/\D/g, '');
+    const d = this.phone().replace(/\D/g, '');
     return d.length === 10 ? '+1' + d : d;
   });
 
