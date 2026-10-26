@@ -36,8 +36,11 @@ comparisons are fine on both.
 
 MySQL note: on servers with `explicit_defaults_for_timestamp = OFF` (MySQL 5.7,
 MariaDB < 10.10) the first `TIMESTAMP NOT NULL` column of a table silently gets
-`ON UPDATE CURRENT_TIMESTAMP`. `events.starts_at` and the tokens' `expires_at`
-therefore declare an explicit `DEFAULT`, which suppresses it. MySQL `TEXT`
+`ON UPDATE CURRENT_TIMESTAMP`. `events.starts_at`, the tokens' `expires_at`,
+`admin_audit.at` and `org_metrics.bucket_start` therefore declare an explicit
+`DEFAULT`, which suppresses it. (A MySQL `org_metrics` table created before
+that default was added can be fixed with `ALTER TABLE org_metrics MODIFY
+bucket_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;`.) MySQL `TEXT`
 columns can't carry a `DEFAULT` on older servers, so `organizations.public_fields`
 and `raffles.how_to_buy` are `VARCHAR` there (same content).
 
@@ -165,7 +168,8 @@ run `node scripts/seed-sample-data.js` (and `--remove` to undo).
   `facebook` / `instagram` / `other_link` = that link used), `bucket`
   (`hour` | `day` | `week`), `bucket_start` (UTC), `n`. Counted in memory,
   written hourly; a daily rollup turns hours older than 7 days into days,
-  days older than 28 days into weeks (Monday UTC), and deletes rows older
+  days older than 35 days into weeks (Monday UTC — kept past 30 so the
+  30-day chart and total always read day rows), and deletes rows older
   than 5 years. No visitor data of any kind. Read by `GET /api/portal/metrics`
   (own org) and the console's "Nonprofit activity" report.
 - **`admin_audit`** — written only by the admin console (this app just
@@ -199,21 +203,29 @@ remove files).
    `title/description/location`, no `slug`) is **dropped** and recreated —
    it only ever held the placeholder seed events.
 2. `TABLE_MIGRATIONS` (indexes, `CREATE … IF NOT EXISTS`, one list per engine).
-3. `COLUMN_MIGRATIONS` (`ALTER TABLE … ADD COLUMN`, "duplicate column" ignored)
-   — so far `organizations.phone_ext`, `org_contacts.phone_ext`,
-   `organizations.search_tags`, `events.status`, `events.preview_token`,
-   `events.preview_expires_at`, `events.is_latest`, `raffles.preview_token`,
-   `raffles.preview_expires_at`, `raffles.visibility`, `raffles.is_latest`.
+3. `COLUMN_MIGRATIONS` — each column is first checked with a zero-row
+   `SELECT <col> … LIMIT 0`; only a missing one gets `ALTER TABLE … ADD
+   COLUMN`. If that ALTER is refused for lack of privileges, the boot log
+   shows `[db] MIGRATION NEEDED: …` with the exact `ALTER` to run. So far:
+   `organizations.phone_ext`, `org_contacts.phone_ext`,
+   `organizations.search_tags`, `organizations.admin_hidden`,
+   `organizations.preview_token`, `organizations.preview_expires_at`,
+   `events.status`, `events.preview_token`, `events.preview_expires_at`,
+   `events.is_latest`, `raffles.preview_token`, `raffles.preview_expires_at`,
+   `raffles.visibility`, `raffles.is_latest`.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
    missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
-   plus the `events.status` backfill and the raffle visibility / stage
-   conversion described above (idempotent `UPDATE`s).
+   plus the `events.status` backfill, the raffle visibility / stage
+   conversion described above, and copying a legacy
+   `raffles.beneficiary_org_id` into `raffle_beneficiaries` (then clearing
+   it) — all idempotent.
 
 When you add a column: add it to **both** `setup_*.sql` files **and**
 `COLUMN_MIGRATIONS`. A new table: add it to both files and append its name to
 `SCHEMA_V2_TABLES`. Note `SETUP_MYSQL_DB.sh` grants the app user only
 `SELECT, INSERT, UPDATE, DELETE`, so on MySQL the boot migration can't create
-tables (it logs a warning) — apply schema changes as an admin (or re-run
+tables (it logs a warning) or add columns (it logs `MIGRATION NEEDED` as an
+error, with the SQL) — apply schema changes as an admin (or re-run
 `setup_mysql_db.sql`, which is idempotent).
 
 SQLite **CHECK** constraints can't be `ALTER`ed; to change one, rebuild the

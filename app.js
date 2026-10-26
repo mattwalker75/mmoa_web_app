@@ -483,7 +483,7 @@ server.listen(port, () => {
 
   // ── nonprofit usage counts (helpers/orgMetrics.js) ─────────────────────
   // In-memory counters are written once an hour; once a day hours older
-  // than 7 days become day rows, days older than 28 days become week rows,
+  // than 7 days become day rows, days older than 35 days become week rows,
   // and rows older than 5 years are deleted. Both also run shortly after
   // boot so a restart never skips a day.
   const flushMetrics = () => orgMetrics.flush(db).catch(e => console.error('[metrics] flush failed:', e.message));

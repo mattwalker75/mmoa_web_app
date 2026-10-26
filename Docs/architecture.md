@@ -53,7 +53,10 @@ subdomains) removed.
   in one place, plus the keyword-search text), `formats.js` (EIN / state /
   phone / extension / email / link / search-keyword normalizers — the
   portal's gatekeeper; the SPA mirrors them in `core/formats.ts` to format as
-  people type), `uploads.js` (image store), `sqlTime.js`.
+  people type), `uploads.js` (image store), `sqlTime.js`, `ogMeta.js` (Open
+  Graph tags for shared event / raffle links), `orgCache.js` (the short-lived
+  public-org cache behind the directory), `orgMetrics.js` (anonymous profile
+  usage counts: hourly flush, hour → day → week rollup, 5-year purge).
 - **Email** (`helpers/email.js`) — outbound-only, console/SMTP/SES. See [email.md](email.md).
 - **Database** (`db/database.js`) — a thin dual-engine (SQLite/MySQL) wrapper
   exposing `getAsync` / `allAsync` / `runAsync` / `transaction`. See [database.md](database.md).
@@ -67,16 +70,16 @@ subdomains) removed.
 |---|---|---|
 | GET | `/health` | Liveness only (outside `/api`, before logging/sessions/maintenance). `{status:'ok', service:'web-app', uptime}` |
 | GET | `/api/public/config` | `appTitle`, `appSubtitle`, `orgName`, `allowMemberRegistration`, `passwordMinLength`, `showLinksInBrowser` |
-| GET | `/api/site` | `{ appTitle, appSubtitle, orgName, tagline, foundedYear, phone, email, ein, addressLine1, addressLine2, city, state, zip, address, meetingInfo, facebookUrl, instagramUrl, youtubeUrl, xUrl, nextdoorUrl, donationUrl, logoUrl, sections: {hero, about, impact, help, partner, footer} }` (tokens applied; every fact is also a `{{token}}`, plus `{{phoneTel}}`, `{{year}}`, `{{eventCount}}`) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
+| GET | `/api/site` | `{ appTitle, appSubtitle, orgName, tagline, foundedYear, phone, email, ein, addressLine1, addressLine2, city, state, zip, address, meetingInfo, facebookUrl, instagramUrl, youtubeUrl, xUrl, nextdoorUrl, donationUrl, needHelpEnabled, logoUrl, sections: {hero, about, impact, help, partner, footer} }` (tokens applied; every fact is also a `{{token}}`, plus `{{phoneTel}}`, `{{year}}`, `{{eventCount}}`) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
 | GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. `status = 'published'` only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
 | GET | `/api/events/:slug` | `:slug` = `latest` → the event marked `is_latest` (same rules; 404 unless it's published). `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 unless published — or `?preview=<token>` with the console's unexpired preview token, which returns any status plus `preview: true, status` (sent `no-store`) |
 | GET | `/api/raffles?status=current\|past` | `{ status, raffles: [Raffle] }`. current = open/closed, past = drawn; published only; ≤50 |
 | GET | `/api/raffles/:slug` | `:slug` = `latest` → the raffle marked `is_latest` (404 unless published). `?preview=<token>` (the console's unexpired preview token) also returns a draft / hidden raffle, plus `preview: true, preview_state: draft\|hidden\|live` (sent `no-store`). `{ raffle }` + `prize_html`, `images: [{url, alt}]`, `how_to_buy`, `claim_requirements: []`, `claim_preset`. `winning_ticket` only when drawn. 404 for drafts/unpublished Includes `beneficiaries: [{name, url, org_id?, profile_path?}]` (like events) + `beneficiaries_text`; `beneficiary` (single) kept for older callers |
 | GET | `/api/board` | `{ board: [{board_id, role_title, role_description, person_name, photo_url}] }` |
 | GET | `/api/directory/meta` | `{ categories: [{category_id, slug, name}], cities: [{city_id, name}] }` (active only) |
-| GET | `/api/directory/search?category=<slug>[,<slug>…]&city=<name\|any>&q=<text>` | `{ categories: [{slug, name}], category (first pick, legacy), city, q, count, results: [PublicOrg] }` — verified + listed only, public fields only; several categories = an org matching ANY of them (comma-separated or repeated `category`); 400 for an unknown category/city. See [Need Help search](#need-help-search) |
+| GET | `/api/directory/search?category=<slug>[,<slug>…]&city=<name\|any>&q=<text>` | `{ categories: [{slug, name}], category (first pick, legacy), city, q, count, results: [PublicOrg] }` — verified + listed only, public fields only; several categories = an org matching ANY of them (comma-separated or repeated `category`); 400 for an unknown category/city. Each result "appeared in search" (usage counts) — except with `?count=0` (the home carousel's plain list), and only for the first 30 searches a minute from one IP. See [Need Help search](#need-help-search) |
 | GET | `/api/directory/orgs/:id` | `{ org: PublicOrg }`, or 404 unless public (verified + listed + not hidden by MMoA). `?preview=<token>` (the console's unexpired `organizations.preview_token`, loaded straight from the DB, not the cache) returns the org whatever its status as `{ org, preview: true, preview_state: live\|unverified\|rejected\|unlisted\|hidden_by_mmoa }` (sent `no-store`; `preview_token` / `admin_hidden` never in the body) |
-| POST | `/api/auth/signup` | `{ org_name, ein, first_name, last_name, email, login_name, password, confirm_password }` → creates the login **and** its organization (unverified) in one transaction, emails a verification link (`devLink` too when the bypass is on). EIN: 9 digits, `12-3456789` or `123456789` |
+| POST | `/api/auth/signup` | `{ org_name, ein, first_name, last_name, email, login_name, password, confirm_password, phone_number? }` → creates the login **and** its organization (unverified) in one transaction, emails a verification link (`devLink` too when the bypass is on). EIN: 9 digits, `12-3456789` or `123456789` |
 | POST | `/api/metrics` | `{ events: [{ org, kind }] }` (≤20) sent by the SPA with `navigator.sendBeacon` when a visitor opens a public profile (`view`) or uses one of its links (`call`, `directions`, `website`, `email`, `facebook`, `instagram`, `other_link`). Anonymous counts only (`helpers/orgMetrics.js`); unknown kinds and non-public orgs are ignored; 120 calls / minute / IP; always `204`. Search appearances (`search`) are counted server-side in `/api/directory/search` |
 | GET | `/api/portal/metrics` | Signed in + verified email. The org's own counts: `{ kinds, totals: { '7d', '30d', '365d' }: { kind: n }, daily: [{ day, search, view, clicks }] (last 30 days), since }` |
 | GET | `/api/portal/org` | Signed in + verified email. `{ org: PrivateOrg (incl. hidden fields + verification_status), preview: PublicOrg, isPublic, adminHidden (MMoA hid the profile from the console; the portal shows a notice), account, options: {categories, cities, publicFieldKeys, maxImages} }` |
@@ -84,27 +87,43 @@ subdomains) removed.
 | POST | `/api/portal/org/images` | multipart, field `image` (+ optional `alt`); JPEG/PNG/WebP by magic bytes, ≤8 MB, ≤5 per org → `201 { image, images }` |
 | DELETE | `/api/portal/org/images/:id` | Own photos only; deletes row + file → `{ images }` |
 | PUT | `/api/portal/org/images/order` | `{ order: [image_id…], alt?: {"<id>": "text"} }` → `{ images }` |
-| POST | `/api/auth/login` | `identifier` (login name or email) + `password`; lockout + DUMMY_HASH timing |
+| POST | `/api/auth/login` | `identifier` (login name or email) + `password`; lockout (counted per account under its login name, whichever was typed) + DUMMY_HASH timing; per-IP request cap (`security.rateLimiting.login`) |
 | POST | `/api/auth/logout` | Clears the session |
 | GET | `/api/auth/me` | Current user or `null` (re-reads the row) |
 | POST | `/api/auth/change-password` | Signed in; needs the current password; signs out other sessions |
 | POST | `/api/auth/verify` | Consumes a verification token |
-| POST | `/api/auth/resend-verification` | Always `ok` (no enumeration) |
-| POST | `/api/auth/forgot-password` | Always `ok`; single-use reset link |
+| POST | `/api/auth/resend-verification` | Always `ok` (no enumeration); at most one link per account every 2 minutes |
+| POST | `/api/auth/forgot-password` | Always `ok`; single-use reset link; at most one per account every 2 minutes |
 | POST | `/api/auth/reset-password/check` | Non-consuming: `ok` or `expired` / `used` / `superseded` / `invalid` |
 | POST | `/api/auth/reset-password` | Consumes the token + sets the password in one transaction |
 
 Security behavior carried over from the control plane: a dummy bcrypt compare
 for unknown accounts (no timing oracle), the per-IP + per-account login lockout
-(`login_lockouts`), per-IP rate limits on the signup/email endpoints, every
-authenticated call re-reading the user (deactivated / deleted / password
-changed elsewhere → session dropped), and single-use tokens whose expiry is
+(`login_lockouts`), per-IP rate limits on the signup / email / password
+endpoints plus a per-IP request cap on login, every authenticated call
+re-reading the user (deactivated / deleted / password changed elsewhere →
+session dropped), a server-side session lifetime (`sessionMaxAgeHours`, from
+the session's issued-at stamp), and single-use tokens whose expiry is
 parsed engine-agnostically and fails closed. New in v2: the portal looks the
 org up by the session's `user_id` only (no client-supplied org ids), uploads
 are magic-byte checked and size-capped, user markdown is rendered by
 `markdownLite` (escape first), stored image paths must match
 `<kind>/<16 hex>.<ext>`, and every outbound link field is limited to
 http(s)/mailto.
+
+Other server behaviour worth knowing (`app.js`):
+
+- **www → apex.** Requests for `www.` + the `publicBaseUrl` host are
+  redirected to the apex (301 for GET/HEAD, 308 otherwise).
+- **HTTPS-only headers.** HSTS and `upgrade-insecure-requests` are sent only
+  when the site really is HTTPS (`server.ssl`, or an `https://`
+  `publicBaseUrl`), so a plain-HTTP setup isn't locked out.
+- **Errors.** The final error handler never sends a stack trace or the
+  error's message — only a generic message (details go to the log).
+- **Request log.** Paths only, never the query string, so preview tokens and
+  reset links don't end up in `logs/app.log`.
+- **Website images.** `/content/images` is served `no-cache` (a re-upload
+  under the same name shows at once), and SVGs get a sandbox CSP.
 
 ## Need Help search
 

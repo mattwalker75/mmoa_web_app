@@ -11,7 +11,7 @@
 // restart loses at most the current hour — accepted. The daily rollup keeps
 // the table small:
 //     hours older than 7 days  → one 'day' row per org/kind/day
-//     days  older than 28 days → one 'week' row per org/kind/week (Mon UTC)
+//     days  older than 35 days → one 'week' row per org/kind/week (Mon UTC)
 //     anything older than 5 years is deleted
 // All SQL is portable (SQLite + MySQL): UPDATE-then-INSERT upserts, no
 // engine-specific date functions (bucket boundaries are computed here).

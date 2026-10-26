@@ -18,11 +18,14 @@ helpers/
   uploads.js                   # uploads/ image store (magic bytes, random names)
   sqlTime.js                   # UTC timestamp helpers
   tokens.js                    # random tokens
+  ogMeta.js                    # Open Graph tags for shared event / raffle links
+  orgCache.js                  # short-lived cache of public orgs (directory)
+  orgMetrics.js                # anonymous profile usage counts (flush, rollup, purge)
 routes/
   api.js                       # /api: auth + mounts the two below
   public.js                    # site sections, events, raffles, board, directory
   portal.js                    # /api/portal: the nonprofit's own profile + photos
-test/                          # `npm test` (node --test): markdownLite + XSS cases
+test/                          # `npm test` (node --test): markdownLite (+ XSS), ogMeta, orgMetrics, schema parsing, SQLite transaction gate
 views/escapeHtml.js            # HTML escaping (leaf module)
 scripts/
   create-member.js             # bootstrap a verified nonprofit login (+ its org; --org "<name>"; password via MEMBER_PASSWORD or prompt)
@@ -30,7 +33,7 @@ scripts/
   sample/shotgun.jpg           # photo for the sample raffle only
   maintenance.sh               # --enable/--disable/--status (the console runs this)
   git-hooks/                   # pre-commit secret scan + install.sh
-HTML/                          # admin-editable website sections (hero/about/help/partner/footer) + images/
+HTML/                          # admin-editable website sections (hero/about/impact/help/partner/footer) + images/ (incl. logo.png)
 uploads/                       # uploaded images (gitignored; events/ raffles/ orgs/ board/)
 setup_sqlite_db.sql            # SQLite schema (auto-applied on first run)
 setup_mysql_db.sql             # MySQL schema
@@ -77,8 +80,8 @@ Rules worth knowing:
 
 | Script | Behavior |
 |---|---|
-| `./START_APP.sh` | `cd`s to the repo; `npm install` if `node_modules/` is missing; `npm run build:frontend` if `frontend/mmoa-web-ui/dist` is missing; refuses to start a second copy; runs a dependency check (`npm audit --omit=dev --audit-level=high`, 30 s timeout, WARNING block on findings, skipped when offline — never blocks); launches `nohup node app.js >> logs/app.log 2>&1 &`, writes `tmp/app.pid`, and verifies the process stayed up. `--force-rebuild` reinstalls + rebuilds first. |
-| `./STOP_APP.sh` | Stops the PID in `tmp/app.pid` **and** whatever listens on the configured port (default 3004): SIGTERM, up to 10 s grace, then SIGKILL. Exit 0 if already stopped. |
+| `./START_APP.sh` | `cd`s to the repo; `npm install` if `node_modules/` is missing; `npm run build:frontend` if `frontend/mmoa-web-ui/dist` is missing; refuses to start a second copy; runs a dependency check (`npm audit --omit=dev --audit-level=high`, 30 s timeout, WARNING block on findings, skipped when offline — never blocks); if the prebuilt `sqlite3` driver won't load (e.g. glibc too old on Amazon Linux 2023) it compiles it from source, logging to `logs/sqlite3-build.log`; rotates `logs/app.log` to `app.log.1` once it passes 50 MB; defaults `NODE_ENV=production`; launches `nohup node app.js >> logs/app.log 2>&1 &`, writes `tmp/app.pid`, and verifies the process stayed up. A PID file is only trusted if that PID is really `node … app.js` (a recycled PID is ignored). `--force-rebuild` reinstalls + rebuilds first. |
+| `./STOP_APP.sh` | Stops this install's app only: the PID in `tmp/app.pid` and any `node app.js` on the configured port whose working directory is this folder — anything else on that port is left alone. SIGTERM, up to 10 s grace, then SIGKILL; a stale PID file is removed. Exit 0 if already stopped. |
 | `./RESTART_APP.sh` | STOP, 2 s pause, START (options forwarded to START). |
 | `./SETUP_SQLLITE_DB.sh` | Deletes and rebuilds `mmoa_web_app.db` from `setup_sqlite_db.sql`. |
 | `./SETUP_MYSQL_DB.sh` | Drops + recreates the MySQL database and user from `config.json`, loads `setup_mysql_db.sql`. |
@@ -135,9 +138,12 @@ content-hashed so this is safe, but hard-reload if a CSS change doesn't show.
   high/critical-only version at every boot and prints a WARNING block (the app
   still starts); run this one by hand now and then, and `npm audit fix --omit=dev`
   (then `npm test` + a restart) to update.
-- `npm test` — unit tests (Node's built-in runner): the markdown-lite renderer,
-  including XSS strings (`<script>`, `javascript:` / `data:` links, attribute
-  break-outs).
+- `npm test` — unit tests (Node's built-in runner, `test/*.test.js`): the
+  markdown-lite renderer including XSS strings (`<script>`, `javascript:` /
+  `data:` links, attribute break-outs); Open Graph tag building; usage
+  metrics (flush, a failed flush keeping its counts, hour → day → week
+  rollup, the 30-day window, summary shape); setup-file parsing for the boot
+  migrations; and the SQLite transaction gate.
 - `node scripts/seed-sample-data.js` — fills an empty site with clearly
   labelled **[Sample]** content: 3 verified nonprofits (logins `sample-org-1..3`
   with unusable random passwords), an upcoming 3rd Annual Coyote Cruisers Car &

@@ -7,7 +7,7 @@ section, plus site photos in **`HTML/images/`**. The admin console (Web App
 Website) edits these; **no rebuild or restart is needed** (changes show on the
 next page load).
 
-## Sections (the 5 keys)
+## Sections (the 6 keys)
 
 | Key / file | Where it appears | Contents |
 |---|---|---|
@@ -16,7 +16,7 @@ next page load).
 | `help` → `HTML/help.html` | `/about` → "How you can help" | `<ul class="help-list">` items (`<strong>` title + text) and `<p class="tagline">`. No heading. |
 | `impact` → `HTML/impact.html` | `/about`, under "What we've done" | `<ul class="impact">` with one `<li>` per item (each shows as a card with a green edge). Emptied (blank or only a comment) hides the heading too; if the file is missing the page shows the built-in list (`PAST_IMPACT` in `site-content.ts`). |
 | `partner` → `HTML/partner.html` | `/partner` (Partner With Us) body | Lede, `<h2>` sub-sections, `.help-list`, `<ol class="steps">`. The page adds its own H1 and the sign-up call-to-action card. |
-| `footer` → `HTML/footer.html` | Every page | `.foot-org` (name, EIN, phone, ©) + `<nav class="foot-links">`. The **"Need help now? 911 · 988 · 211" box is built into the SPA**, not this file, so it can't be edited away. |
+| `footer` → `HTML/footer.html` | Every page | `.foot-org` (name, EIN, "Anna, Texas", ©) + `<nav class="foot-links">` (Facebook link via `{{facebookUrl}}`). The **"Need help now? 911 · 988 · 211" box is built into the SPA**, not this file, so it can't be edited away. |
 
 The v1 sections (`mission`, `events`, `involved`) and `HTML/windows.json`
 (per-section window chrome) are **gone** in v2 — the dark design has fixed
@@ -67,10 +67,10 @@ Unknown tokens are left as-is.
   `volunteers.jpg`, `fundraiser.jpg`, `legion.jpg` (home photo grid),
   `group.jpg`, `angeltree.jpg` (About). The SPA refers to these names, so
   replace a photo by overwriting the file with the same name.
-- **Logo:** the header shows a built-in stand-in eagle-with-M-shield SVG. Drop
-  `HTML/images/logo.png` (or `logo.svg`) and the header uses that file instead
-  (`GET /api/site` → `logoUrl`); `logo.png` is also shown on the maintenance
-  screen.
+- **Logo:** the header shows `HTML/images/logo.png` — committed: the white
+  MMoA eagle on a transparent background, 512 × 512 — or `logo.svg` (PNG wins
+  if both exist; `GET /api/site` → `logoUrl`). With neither, it falls back to a
+  built-in eagle SVG. `logo.png` is also shown on the maintenance screen.
 - **Uploaded images** (event flyers/covers, raffle photos, nonprofit photos,
   board photos) are NOT here — they live in `uploads/` (gitignored), see
   [database.md](database.md#uploaded-images).
@@ -86,6 +86,15 @@ only its fallback for when `HTML/impact.html` is missing. The "Need Help?" / dir
 ## How it works
 
 `GET /api/site` reads the section files (mtime-cached → live but cheap),
-substitutes tokens, and returns
-`{ appTitle, orgName, phone, ein, facebookUrl, donationUrl, logoUrl, sections: { hero, about, impact, help, partner, footer } }`.
+substitutes tokens, and returns every site fact (the full list is in
+[architecture.md](architecture.md#api)) plus `needHelpEnabled`, `logoUrl` and
+`sections: { hero, about, impact, help, partner, footer }`.
+
+**Blank settings.** The site's own phone / email / Facebook links and the
+footer fallback's EIN hide themselves when the setting is blank (a phone
+counts only with 7–15 digits, an email only if it looks real). Text *inside*
+a section file can't: a section that uses `{{facebookUrl}}`, `{{phone}}` or
+`{{ein}}` renders an empty link or label when that setting is blank — the
+committed `help`, `partner` and `footer` sections use `{{facebookUrl}}`, so
+edit them if Facebook is ever cleared.
 (`GET /api/content` is kept as a legacy alias returning `{ sections }`.)

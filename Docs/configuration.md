@@ -18,7 +18,7 @@ the values you want to override. Keys prefixed with `_` are comments.
 | `orgName` | `Mission Men of Anna Inc` | Legal name — emails and the `{{orgName}}` website token |
 | `publicBaseUrl` | `http://localhost:3004` | Absolute base for emailed links. Must be the URL visitors actually reach (also the base for Open Graph image/page URLs). |
 | `sessionKeyMode` / `sessionKeys` | `auto-generate` / `["",""]` | Leave blank — see "Session signing keys" |
-| `sessionMaxAgeHours` | `8` | Sign-in lifetime |
+| `sessionMaxAgeHours` | `8` | Sign-in lifetime — the cookie's expiry and also enforced on the server (a session older than this is refused, even from a copied cookie) |
 | `passwordMinLength` | `8` | Minimum password length |
 | `passwordResetTokenTtlHours` | `2` | Reset-link lifetime |
 | `allowMemberRegistration` | `true` | Toggle nonprofit sign-up (Partner With Us → create a login) |
@@ -56,14 +56,22 @@ resources.
 | Key | Default | Purpose |
 |---|---|---|
 | `verificationLinkExpiresMinutes` | `60` | Verification-link lifetime |
-| `rateLimiting.auth` | `300 s / 10` | Per-IP window over signup / forgot-password / resend-verification / reset-password check |
-| `loginLockout` | `enabled, 10 failures, 300 s` | Per-IP and per-account lock after repeated failed logins; success clears both |
+| `rateLimiting.auth` | `300 s / 10` | Per-IP window over signup / forgot-password / resend-verification / reset-password check / change-password |
+| `rateLimiting.login` | `60 s / 30` | Per-IP request cap on `POST /api/auth/login`. Stops a burst of parallel guesses that would all pass the lockout check before any is counted. `maxAttempts: 0` turns it off |
+| `loginLockout` | `enabled, 10 failures, 300 s` | Per-IP and per-account lock after repeated failed logins; success clears both. The account counter is kept under the login name whichever of login name or email was typed, and a lock under either is honoured. A console "Lock login" (403 `account_locked`) applies even when `enabled` is false |
 | `headers` | `enabled, CSP on` | helmet + Content-Security-Policy |
 | `session` | `secure: null, httpOnly, sameSite: strict` | `secure: null` = automatic (Secure whenever HTTPS) |
 
 Every authenticated API call re-reads the account row, so deactivating a login
 in the admin console or changing a password ends that login's other sessions
-on their next request.
+on their next request. Sessions also carry the time they were issued and are
+refused once older than `sessionMaxAgeHours`. If the database can't be read
+during that check, portal and change-password calls answer 503 ("try again")
+rather than trusting the cookie; `/api/auth/me` keeps the session through a
+brief blip.
+
+Forgot-password and resend-verification send at most one link per account
+every 2 minutes; the reply is the same either way.
 
 **Session signing keys.** If `sessionKeys` in `config.json` holds two real
 values they are used. Otherwise (blank or `<PLACEHOLDER>`) the app uses

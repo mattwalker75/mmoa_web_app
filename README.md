@@ -72,7 +72,7 @@ MEMBER_PASSWORD='somepassword' node scripts/create-member.js pantry pantry@examp
 # (optional) demo content, clearly labelled [Sample]; undo with --remove
 node scripts/seed-sample-data.js
 
-# unit tests (markdown-lite renderer + XSS cases)
+# unit tests (markdown-lite + XSS, Open Graph tags, metrics, schema parsing, transactions)
 npm test
 
 # known vulnerabilities in the production dependencies (START_APP.sh also runs
