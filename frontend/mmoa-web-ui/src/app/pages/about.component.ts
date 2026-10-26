@@ -64,7 +64,7 @@ import { LogoComponent } from '../shared/logo.component';
         <div appRouteLinks [innerHTML]="site.section('help') || ''"></div>
         <div class="btn-row">
           <a class="btn btn-primary btn-lg" routerLink="/partner">Partner with us</a>
-          <a class="btn btn-outline btn-lg" [href]="'tel:' + site.phoneTel()">Call {{ site.phone() }}</a>
+          @if (site.phone()) { <a class="btn btn-outline btn-lg" [href]="'tel:' + site.phoneTel()">Call {{ site.phone() }}</a> }
           <a class="btn btn-outline btn-lg" [href]="site.info().facebookUrl" target="_blank" rel="noopener">Follow us on Facebook</a>
         </div>
       </section>

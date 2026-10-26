@@ -27,7 +27,7 @@ const defaults = {
   // the header "Donate" button, shown only while donationEnabled is true
   // (both set from the admin console).
   site: {
-    phone: '(214) 763-5546',
+    phone: '', // public contact phone; '' hides every phone line on the site
     ein: '33-4035685',
     facebookUrl: 'https://www.facebook.com/missionmenofanna',
     donationEnabled: false,

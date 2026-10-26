@@ -8,7 +8,7 @@ import { SiteInfo } from './models';
 const DEFAULTS: SiteInfo = {
   appTitle: 'Mission Men of Anna',
   orgName: 'Mission Men of Anna Inc',
-  phone: '(214) 763-5546',
+  phone: '',
   ein: '33-4035685',
   facebookUrl: 'https://www.facebook.com/missionmenofanna',
   donationUrl: '',

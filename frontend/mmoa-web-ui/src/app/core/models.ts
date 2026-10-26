@@ -30,6 +30,8 @@ export interface SiteInfo {
   appTitle: string;
   orgName: string;
   phone: string;
+  /** Public contact email ('' or missing = none). */
+  email?: string;
   ein: string;
   facebookUrl: string;
   /** Payment link for the "Donate" button; '' = no button. */

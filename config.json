@@ -8,7 +8,7 @@
   "publicBaseUrl": "http://localhost:3004",
   "site": {
     "_comment": "Public contact facts shown in the site header/footer and returned by GET /api/site (also the {{phone}}, {{ein}}, {{facebookUrl}} website tokens).",
-    "phone": "(214) 763-5546",
+    "phone": "",
     "ein": "33-4035685",
     "facebookUrl": "https://www.facebook.com/missionmenofanna"
   },

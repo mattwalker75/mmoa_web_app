@@ -79,7 +79,7 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
             @if (r.status !== 'drawn') {
               <section class="card card-tight" style="padding:20px 22px">
                 <h2 class="plain-h2" style="margin:0 0 8px">How to get tickets</h2>
-                <p class="soft" style="margin:0">{{ r.how_to_buy }} Questions? Call <a [href]="'tel:' + site.phoneTel()">{{ site.phone() }}</a>.</p>
+                <p class="soft" style="margin:0">{{ r.how_to_buy }}@if (site.phone()) { Questions? Call <a [href]="'tel:' + site.phoneTel()">{{ site.phone() }}</a>.}</p>
               </section>
             }
 

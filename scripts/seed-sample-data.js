@@ -139,7 +139,7 @@ async function add(db) {
     {
       slug: 'sample-coyote-cruisers-car-bike-show', title: '[Sample] 3rd Annual Coyote Cruisers Car & Bike Show',
       summary: 'Classic cars, trucks and bikes, food trucks, music and awards — all for local kids and teachers.',
-      description_md: 'Bring your ride or just come look! **Awards** in a dozen classes, food trucks, music and kids\' activities.\n\n- Registration opens at 8 AM\n- Judging 11 AM – 1 PM\n- Awards at 2:30 PM\n\nQuestions? Call (214) 763-5546.',
+      description_md: 'Bring your ride or just come look! **Awards** in a dozen classes, food trucks, music and kids\' activities.\n\n- Registration opens at 8 AM\n- Judging 11 AM – 1 PM\n- Awards at 2:30 PM\n\nQuestions? Message us on Facebook.',
       starts_at: centralToSql(showDay, 9, 0), ends_at: centralToSql(showDay, 15, 0),
       venue_name: 'Anna Town Square', address: '101 N Powell Pkwy', city: 'Anna',
       registration_url: 'https://example.org/register', registration_label: 'Register & pay',

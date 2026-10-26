@@ -40,8 +40,8 @@ These `{{tokens}}` are filled by the server (HTML-escaped):
 |---|---|
 | `{{appTitle}}` | `config.appTitle` (Mission Men of Anna) |
 | `{{orgName}}` | `config.orgName` (Mission Men of Anna Inc) |
-| `{{phone}}` | `config.site.phone` — `(214) 763-5546` |
-| `{{phoneTel}}` | the same phone as digits for `tel:` links — `+12147635546` |
+| `{{phone}}` | `config.site.phone` — e.g. `(972) 555-0100`; blank when no phone is set |
+| `{{phoneTel}}` | the same phone as digits for `tel:` links — e.g. `+19725550100` |
 | `{{ein}}` | `config.site.ein` — `33-4035685` |
 | `{{facebookUrl}}` | `config.site.facebookUrl` |
 | `{{donationUrl}}` | `config.site.donationUrl` (blank when not set — only use it in a fragment if a link is configured) |
