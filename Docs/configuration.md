@@ -58,7 +58,7 @@ resources.
 | `verificationLinkExpiresMinutes` | `60` | Verification-link lifetime |
 | `rateLimiting.auth` | `300 s / 10` | Per-IP window over signup / forgot-password / resend-verification / reset-password check / change-password |
 | `rateLimiting.login` | `60 s / 30` | Per-IP request cap on `POST /api/auth/login`. Stops a burst of parallel guesses that would all pass the lockout check before any is counted. `maxAttempts: 0` turns it off |
-| `loginLockout` | `enabled, 10 failures, 300 s` | Per-IP and per-account lock after repeated failed logins; success clears both. The account counter is kept under the login name whichever of login name or email was typed, and a lock under either is honoured. A console "Lock login" (403 `account_locked`) applies even when `enabled` is false |
+| `loginLockout` | `enabled, 10 failures, 300 s` | Per-IP and per-account lock after repeated failed logins; success clears both. The account counter is kept under the login name whichever of login name or email was typed, and a lock under either is honoured. A console "Lock login" (403 `account_locked`) applies even when `enabled` is false, and also ends that account's sessions already open |
 | `headers` | `enabled, CSP on` | helmet + Content-Security-Policy |
 | `session` | `secure: null, httpOnly, sameSite: strict` | `secure: null` = automatic (Secure whenever HTTPS) |
 
