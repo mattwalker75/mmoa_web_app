@@ -72,14 +72,24 @@ module.exports = function (db, appConfig) {
   // the account (one primary-key lookup): deactivated in the admin console,
   // deleted, or password changed elsewhere → the session is dropped and the
   // call gets 401. The same read refreshes email_verified_at.
-  async function refreshSessionUser(req) {
+  // Sessions also carry `iat` (issued at, ms) and stop being accepted
+  // sessionMaxAgeHours after it — the cookie's own expiry only tells the
+  // browser when to drop it, so a copied cookie would otherwise live on.
+  function sessionMaxAgeMs() { return (Number(appConfig.sessionMaxAgeHours) || 8) * 3600 * 1000; }
+  // lenient: on a DB error keep the session (used by /auth/me so a blip
+  // doesn't sign everyone out). Otherwise a DB error throws `dbDown`, and
+  // the guards answer 503 rather than trust the cookie for portal writes.
+  async function refreshSessionUser(req, { lenient = false } = {}) {
     const s = req.session && req.session.user;
     if (!s) return null;
+    if (!Number.isFinite(s.iat)) s.iat = Date.now(); // sessions issued before iat existed
+    if (Date.now() - s.iat > sessionMaxAgeMs()) { req.session = null; return null; }
     let u;
     try {
       u = await db.getAsync('SELECT user_id, is_active, password_hash, email_verified_at FROM users WHERE user_id = ?', [s.user_id]);
     } catch (e) {
-      return s; // a DB blip should not log everyone out
+      if (lenient) return s;
+      const err = new Error('session check failed: ' + e.message); err.dbDown = true; throw err;
     }
     // Every login stamps pv; a session without one was not issued by a
     // login (e.g. forged with leaked signing keys) — never accept it.
@@ -90,14 +100,20 @@ module.exports = function (db, appConfig) {
     s.email_verified_at = u.email_verified_at;
     return s;
   }
+  const BUSY = { error: 'We couldn\'t check your sign-in just now. Please try again in a moment.' };
   async function requireUser(req, res, next) {
-    if (await refreshSessionUser(req)) return next();
+    let s;
+    try { s = await refreshSessionUser(req); }
+    catch (e) { console.error('[api] ' + e.message); return res.status(503).json(BUSY); }
+    if (s) return next();
     res.status(401).json({ error: 'Not signed in' });
   }
   // Portal routes: signed in AND email verified (login already refuses
   // unverified accounts; this re-checks the live row on every call).
   async function requireVerified(req, res, next) {
-    const s = await refreshSessionUser(req);
+    let s;
+    try { s = await refreshSessionUser(req); }
+    catch (e) { console.error('[api] ' + e.message); return res.status(503).json(BUSY); }
     if (!s) return res.status(401).json({ error: 'Not signed in' });
     if (!s.email_verified_at) return res.status(403).json({ error: 'Please verify your email first.', code: 'unverified' });
     next();
@@ -111,6 +127,18 @@ module.exports = function (db, appConfig) {
       return sec.verificationLinkExpiresMinutes;
     }
     return 60;
+  }
+
+  // Per-address throttle for the two "email me a link" endpoints: if this
+  // account was sent a link in the last EMAIL_LINK_GAP_MS, don't send
+  // another. The reply is the same either way (no enumeration). Stops a
+  // botnet spread over many IPs flooding one inbox — and every new reset
+  // link cancelling the one the real member is about to click.
+  const EMAIL_LINK_GAP_MS = 2 * 60 * 1000;
+  async function sentRecently(table, userId) {
+    const row = await db.getAsync(`SELECT created_at FROM ${table} WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, [userId]);
+    const at = row ? parseSqlTimeMs(row.created_at) : NaN;
+    return Number.isFinite(at) && Date.now() - at < EMAIL_LINK_GAP_MS;
   }
 
   function baseUrl() {
@@ -331,6 +359,21 @@ module.exports = function (db, appConfig) {
         [identifier.toLowerCase(), identifier]
       );
       const generic = { error: 'Invalid login or password' };
+      // One account, one counter: it can be typed as its login name or its
+      // email, so once it's known, honour a lock under either key (the
+      // console's manual lock sets both) and count failures under the
+      // login name — not under whichever spelling this attempt used.
+      const typedKey = identifier.toLowerCase();
+      const acctKeys = u ? [...new Set([u.login_name, u.email].filter(Boolean).map(k => String(k).toLowerCase()))] : [];
+      for (const k of acctKeys.filter(k => k !== typedKey)) {
+        const l2 = await checkLockout(db, appConfig, { identifier: k });
+        if (l2.manual) return res.status(403).json({ error: 'This account has been locked by Mission Men of Anna. Contact MMoA to restore access.', code: 'account_locked' });
+        if (l2.locked) {
+          res.set('Retry-After', String(l2.retryAfter));
+          return res.status(429).json({ error: `Too many failed login attempts. Try again in ${l2.retryAfter} seconds.`, code: 'locked', retryAfter: l2.retryAfter });
+        }
+      }
+      const failKey = (u && u.login_name) ? u.login_name : identifier;
       // Unknown / inactive account: still run a bcrypt compare against a dummy
       // hash so the response time matches the wrong-password path, then count
       // it as a failed attempt.
@@ -342,7 +385,7 @@ module.exports = function (db, appConfig) {
 
       const ok = await verifyPassword(password, u.password_hash);
       if (!ok) {
-        await recordFailure(db, appConfig, { ip, identifier });
+        await recordFailure(db, appConfig, { ip, identifier: failKey });
         return res.status(401).json(generic);
       }
 
@@ -350,11 +393,13 @@ module.exports = function (db, appConfig) {
         // Valid credentials — clear the failure counters even though the email
         // gate blocks the session, so a verified retry isn't penalized.
         await resetLockout(db, { ip, identifier });
+        for (const k of acctKeys) await resetLockout(db, { identifier: k });
         return res.status(403).json({ error: 'Please verify your email before signing in.', code: 'unverified', email: u.email });
       }
 
-      // Success: clear this IP's + account's failure history.
+      // Success: clear this IP's + account's failure history (every key).
       await resetLockout(db, { ip, identifier });
+      for (const k of acctKeys) await resetLockout(db, { identifier: k });
 
       req.session.user = {
         user_id: u.user_id,
@@ -363,7 +408,8 @@ module.exports = function (db, appConfig) {
         first_name: u.first_name,
         last_name: u.last_name,
         email_verified_at: u.email_verified_at,
-        pv: pwVersion(u.password_hash) // see refreshSessionUser
+        pv: pwVersion(u.password_hash), // see refreshSessionUser
+        iat: Date.now()                 // ditto: server-side session lifetime
       };
       await db.runAsync('UPDATE users SET last_login_at = ? WHERE user_id = ?', [sqlTime(Date.now()), u.user_id]);
 
@@ -382,7 +428,7 @@ module.exports = function (db, appConfig) {
   // Re-reads the row rather than echoing the session copy: profile edits
   // made in the admin console show up without a re-login.
   router.get('/auth/me', async (req, res) => {
-    const s = await refreshSessionUser(req); // drops deactivated / re-passworded sessions
+    const s = await refreshSessionUser(req, { lenient: true }); // drops deactivated / re-passworded / expired sessions
     if (!s) return res.json({ user: null });
     try {
       const u = await db.getAsync(
@@ -501,6 +547,7 @@ module.exports = function (db, appConfig) {
     try {
       const u = await db.getAsync('SELECT user_id, first_name, email, email_verified_at FROM users WHERE email = ?', [email]);
       if (!u || u.email_verified_at) return done();
+      if (await sentRecently('email_verification_tokens', u.user_id)) return done();
       const token = newToken(32);
       const expiresMinutes = verificationExpiryMinutes();
       await db.runAsync(
@@ -527,6 +574,7 @@ module.exports = function (db, appConfig) {
       const u = await db.getAsync('SELECT user_id, first_name, email, is_active FROM users WHERE email = ?', [email]);
       // Inactive accounts can't sign in anyway; don't hand them a reset link.
       if (!u || !u.is_active) return done();
+      if (await sentRecently('password_reset_tokens', u.user_id)) return done();
       // Invalidate any outstanding reset tokens for this user before issuing a
       // fresh one, so only the newest link is live.
       await db.runAsync(

@@ -24,7 +24,9 @@ const KINDS = ['search', 'view', 'call', 'directions', 'website', 'email', 'face
 const LINK_KINDS = KINDS.filter(k => k !== 'search' && k !== 'view');
 const BEACON_KINDS = KINDS.filter(k => k !== 'search'); // what the SPA may report
 const HOUR = 3600 * 1000, DAY = 24 * HOUR, WEEK = 7 * DAY;
-const KEEP_HOURS_MS = 7 * DAY, KEEP_DAYS_MS = 28 * DAY, KEEP_ALL_MS = 5 * 365 * DAY;
+// Day rows are kept 35 days (not 28) so the 30-day chart and the 30-day
+// total always read real day rows, never a week row that straddles the edge.
+const KEEP_HOURS_MS = 7 * DAY, KEEP_DAYS_MS = 35 * DAY, KEEP_ALL_MS = 5 * 365 * DAY;
 
 const hourStart = (ms) => sqlTime(Math.floor(ms / HOUR) * HOUR);
 const dayStart = (ms) => sqlTime(Math.floor(ms / DAY) * DAY);
@@ -63,14 +65,16 @@ async function flush(db) {
   const snapshot = [...pending.entries()];
   pending.clear();
   let written = 0;
-  for (const [key, n] of snapshot) {
+  for (let i = 0; i < snapshot.length; i++) {
+    const [key, n] = snapshot[i];
     const [org, kind, start] = key.split('|');
     try {
       await addTo(db, Number(org), kind, 'hour', start, n);
       written++;
     } catch (e) {
-      // Put it back for the next flush (table not created yet, DB down…).
-      pending.set(key, (pending.get(key) || 0) + n);
+      // Put this entry and every one not written yet back for the next
+      // flush (table not created yet, DB busy or down…), then report it.
+      for (const [k, v] of snapshot.slice(i)) pending.set(k, (pending.get(k) || 0) + v);
       throw e;
     }
   }
@@ -101,7 +105,7 @@ async function rollBucket(db, from, to, cutoffMs, startOf) {
   return rows.length;
 }
 
-/** hours → days (after 7 days), days → weeks (after 28 days), purge after 5 years. */
+/** hours → days (after 7 days), days → weeks (after 35 days), purge after 5 years. */
 async function rollup(db, now = Date.now()) {
   const hours = await rollBucket(db, 'hour', 'day', now - KEEP_HOURS_MS, dayStart);
   const days = await rollBucket(db, 'day', 'week', now - KEEP_DAYS_MS, weekStart);

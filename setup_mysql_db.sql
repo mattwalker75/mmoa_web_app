@@ -390,7 +390,9 @@ CREATE TABLE IF NOT EXISTS org_metrics (
     org_id       INT NOT NULL,
     kind         VARCHAR(20) NOT NULL,
     bucket       VARCHAR(4) NOT NULL,
-    bucket_start TIMESTAMP NOT NULL,
+    -- explicit DEFAULT: see the TIMESTAMP gotcha at the top (else every
+    -- UPDATE of a count would move the row's bucket to "now")
+    bucket_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     n            INT NOT NULL DEFAULT 0,
     UNIQUE KEY uq_org_metrics (org_id, kind, bucket, bucket_start),
     INDEX idx_org_metrics_start (bucket, bucket_start),

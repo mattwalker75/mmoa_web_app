@@ -45,7 +45,7 @@ test('flush writes hour buckets and adds to an existing row', async () => {
   assert.equal(m._pending.size, 0);
 });
 
-test('rollup: hours older than 7 days become day rows, days older than 28 become week rows, 5+ years is purged', async () => {
+test('rollup: hours older than 7 days become day rows, days older than 35 become week rows, 5+ years is purged', async () => {
   await db.runAsync('DELETE FROM org_metrics');
   const now = Date.UTC(2026, 9, 23, 15, 0, 0); // Fri 2026-10-23 15:00 UTC
   const ins = (bucket, start, n, kind = 'view') =>
@@ -109,5 +109,33 @@ test('summary: totals per window, 30 filled days, pending counts included, since
   assert.equal(empty.since, null);
   m.bump(999, 'view');
   assert.equal((await m.summary(db, 999, now)).since, '2026-10-23', 'unflushed first events still count as a start day');
+  m._pending.clear();
+});
+
+test('rollup keeps day rows for the whole 30-day chart window', async () => {
+  await db.runAsync('DELETE FROM org_metrics');
+  const now = Date.UTC(2026, 9, 23, 15, 0, 0);
+  const day29 = Math.floor(now / DAY) * DAY - 29 * DAY; // the chart's oldest day
+  await db.runAsync("INSERT INTO org_metrics (org_id, kind, bucket, bucket_start, n) VALUES (6, 'view', 'day', ?, 4)", [sqlTime(day29)]);
+  await m.rollup(db, now);
+  const s = await m.summary(db, 6, now);
+  assert.equal(s.daily[0].view, 4, 'oldest chart day still shows its count after a rollup');
+  assert.equal(s.totals['30d'].view, 4);
+});
+
+test('a failed flush keeps every count that was not written', async () => {
+  m._pending.clear();
+  m.bump(11, 'view'); m.bump(12, 'view'); m.bump(13, 'view');
+  // every write for org 12 fails (the DB stays busy for that row)
+  const flaky = {
+    getAsync: (...a) => db.getAsync(...a),
+    allAsync: (...a) => db.allAsync(...a),
+    runAsync: async (sql, params) => { if ((params || []).includes(12)) throw new Error('SQLITE_BUSY'); return db.runAsync(sql, params); }
+  };
+  await assert.rejects(m.flush(flaky), /SQLITE_BUSY/);
+  const left = [...m._pending.keys()].map(k => k.split('|')[0]).sort();
+  assert.deepEqual(left, ['12', '13'], 'the failing entry and every one after it are kept');
+  assert.equal(await m.flush(db) >= 2, true);
+  assert.equal(m._pending.size, 0);
   m._pending.clear();
 });

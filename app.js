@@ -193,6 +193,20 @@ if (authRl) {
   // counts like a failed login); the IP window here caps raw volume.
   app.use(['/api/auth/signup', '/api/auth/forgot-password', '/api/auth/resend-verification', '/api/auth/reset-password/check', '/api/auth/change-password'], authLimiter);
 }
+// Login: the lockout (middleware/loginLockout.js) counts failures, but it is
+// checked before the bcrypt compare and bumped after it, so many parallel
+// requests could all slip past it. A generous per-IP request cap closes that
+// without touching normal use (30 a minute by default).
+const loginRl = appConfig.security && appConfig.security.rateLimiting && appConfig.security.rateLimiting.login;
+if (loginRl && loginRl.maxAttempts > 0) {
+  app.use('/api/auth/login', rateLimit({
+    windowMs: (loginRl.windowSeconds || 60) * 1000,
+    max: loginRl.maxAttempts,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many sign-in attempts. Please wait a minute and try again.' }
+  }));
+}
 
 // ── maintenance mode ─────────────────────────────────────────────────────
 // Toggled by scripts/maintenance.sh (writes maintenance.json) — which the

@@ -493,15 +493,25 @@ async function runRowMigrations(db) {
 async function runColumnMigrations(db) {
   let added = 0;
   for (const [table, col, type] of COLUMN_MIGRATIONS) {
+    // Already there? (A zero-row SELECT naming the column fails if it isn't.)
+    // Checking first keeps an up-to-date database quiet, so a real failure
+    // below can be reported loudly.
+    try { await db.allAsync(`SELECT ${col} FROM ${table} LIMIT 0`, []); continue; }
+    catch (e) { /* missing column (or table) — try to add it */ }
     try {
       await db.runAsync(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
       added++;
       console.log(`[db] migration: added ${table}.${col}`);
     } catch (e) {
-      // Expected on an up-to-date DB: duplicate column / (fresh boot) table not
-      // yet created. Anything else is worth a line, but never fatal.
+      // Expected: duplicate column (a race) / table not created yet on a
+      // fresh boot. Anything else — notably MySQL's "ALTER command denied"
+      // when the app user has only SELECT/INSERT/UPDATE/DELETE — means the
+      // column is really missing and queries using it will fail.
       const m = (e && e.message) || '';
-      if (!/duplicate column|already exists|no such table|doesn't exist|Duplicate column|command denied/i.test(m)) {
+      if (/command denied/i.test(m)) {
+        console.error(`[db] MIGRATION NEEDED: column ${table}.${col} is missing and this database user may not ALTER tables. ` +
+          `Add it as an admin: ALTER TABLE ${table} ADD COLUMN ${col} ${type};  (or re-run setup_mysql_db.sql as root)`);
+      } else if (!/duplicate column|already exists|no such table|doesn't exist/i.test(m)) {
         console.warn(`[db] migration ${table}.${col} skipped:`, m);
       }
     }

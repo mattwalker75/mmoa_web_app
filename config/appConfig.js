@@ -82,7 +82,12 @@ const defaults = {
     verificationLinkExpiresMinutes: 60,
     rateLimiting: {
       // Account-creation / email endpoints (app.js).
-      auth: { windowSeconds: 300, maxAttempts: 10 }
+      auth: { windowSeconds: 300, maxAttempts: 10 },
+      // POST /api/auth/login, per client IP — a coarse cap on raw volume.
+      // The failed-attempt lockout (below) does the real work; this only
+      // stops a burst of parallel guesses that all pass the lockout check
+      // before any of them has been counted.
+      login: { windowSeconds: 60, maxAttempts: 30 }
     },
     // Failed-login lockout (DB-backed, table login_lockouts). Tracks both the
     // client IP and the typed account; after maxFailures on either axis it is

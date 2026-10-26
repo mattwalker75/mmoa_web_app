@@ -9,7 +9,7 @@
 //   GET /api/raffles/:slug
 //   GET /api/board
 //   GET /api/directory/meta
-//   GET /api/directory/search?category=<slug>&city=<name|any>&q=<text>
+//   GET /api/directory/search?category=<slug>&city=<name|any>&q=<text>[&count=0 → don't count it as a search]
 //   GET /api/directory/orgs/:id[?preview=<token>]
 //
 // Visibility rules (the whole point of this file — keep them here):
@@ -356,6 +356,19 @@ module.exports = function (db, appConfig) {
   }
   const publicOrgs = () => orgCache.getPublicOrgs(loadPublicOrgs);
 
+  // "Appeared in search" counting is capped per client IP: a script looping
+  // the search can still get results, but only the first SEARCH_COUNT_MAX
+  // searches a minute from one address are counted.
+  const SEARCH_COUNT_MAX = 30;
+  const searchCounts = new Map(); // ip → { start, n }
+  function countThisSearch(ip) {
+    const now = Date.now();
+    if (searchCounts.size > 5000) for (const [k, v] of searchCounts) if (now - v.start > 60000) searchCounts.delete(k);
+    let e = searchCounts.get(ip);
+    if (!e || now - e.start > 60000) { e = { start: now, n: 0 }; searchCounts.set(ip, e); }
+    return ++e.n <= SEARCH_COUNT_MAX;
+  }
+
   router.get('/directory/search', async (req, res) => {
     // ?category= takes one slug or several, comma-separated and/or repeated
     // (?category=food,housing or ?category=food&category=housing). An org
@@ -424,7 +437,11 @@ module.exports = function (db, appConfig) {
         a.name.localeCompare(b.name));
       // Usage counts: each org shown in this result list "appeared in search"
       // (helpers/orgMetrics.js; totals only, nothing about the visitor).
-      for (const p of results) orgMetrics.bump(p.org_id, 'search');
+      // Not for ?count=0 (the home page's partner carousel lists every org
+      // on every visit — that isn't a search) or past the per-IP cap.
+      if (req.query.count !== '0' && countThisSearch(req.ip)) {
+        for (const p of results) orgMetrics.bump(p.org_id, 'search');
+      }
       res.json({
         categories: cats.map(c => ({ slug: c.slug, name: c.name })),
         // Single-category shape kept for older callers: the first selection.

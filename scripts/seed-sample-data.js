@@ -178,11 +178,16 @@ async function add(db) {
   } else {
     const ins = await db.runAsync(
       `INSERT INTO raffles (slug, title, prize_description_md, total_tickets, ticket_price_text, drawing_at, drawing_location,
-         claim_requirements, claim_preset, beneficiary_org_id, status, visibility, is_published, created_at, updated_at)
-       VALUES (?, ?, ?, 250, '$20 each or 6 for $100', ?, 'at the Chili Cook-Off', ?, 'firearm', ?, 'open', 'published', 1, ?, ?)`,
+         claim_requirements, claim_preset, status, visibility, is_published, created_at, updated_at)
+       VALUES (?, ?, ?, 250, '$20 each or 6 for $100', ?, 'at the Chili Cook-Off', ?, 'firearm', 'open', 'published', 1, ?, ?)`,
       [raffleSlug, '[Sample] Over/Under Shotgun Raffle',
         '12-gauge over/under with a walnut stock. **New in box.**\n\nRetail value about $900.',
-        centralToSql(chiliDay, 15, 0), FIREARM_RULES, orgIds['sample-org-2'], now, now]);
+        centralToSql(chiliDay, 15, 0), FIREARM_RULES, now, now]);
+    // The site reads beneficiaries from raffle_beneficiaries (the legacy
+    // raffles.beneficiary_org_id is only copied across at app start-up), so
+    // write it there directly — the raffle shows its beneficiary straight
+    // away even when this runs while the app is up.
+    await db.runAsync('INSERT INTO raffle_beneficiaries (raffle_id, org_id, sort) VALUES (?, ?, 0)', [ins.lastID, orgIds['sample-org-2']]);
     await db.runAsync('INSERT INTO raffle_images (raffle_id, path, alt, sort) VALUES (?, ?, ?, 0)',
       [ins.lastID, await copyImage('raffles', path.join(__dirname, 'sample', 'shotgun.jpg')), 'Over/under shotgun leaning on a tree by a lake']);
     console.log('+ added [Sample] Over/Under Shotgun Raffle');
