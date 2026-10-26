@@ -38,7 +38,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { hashPassword, verifyPassword } = require('../middleware/auth');
-const { checkLockout, recordFailure, resetLockout } = require('../middleware/loginLockout');
+const { checkLockout, recordFailure, resetLockout, MANUAL_LOCK_MS } = require('../middleware/loginLockout');
 const { newToken } = require('../helpers/tokens');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../helpers/email');
 const { normalizeEin } = require('./portal');
@@ -84,16 +84,25 @@ module.exports = function (db, appConfig) {
     if (!s) return null;
     if (!Number.isFinite(s.iat)) s.iat = Date.now(); // sessions issued before iat existed
     if (Date.now() - s.iat > sessionMaxAgeMs()) { req.session = null; return null; }
-    let u;
+    let u, locked = false;
     try {
-      u = await db.getAsync('SELECT user_id, is_active, password_hash, email_verified_at FROM users WHERE user_id = ?', [s.user_id]);
+      u = await db.getAsync('SELECT user_id, login_name, email, is_active, password_hash, email_verified_at FROM users WHERE user_id = ?', [s.user_id]);
+      // An MMoA admin's "Lock login" (console) ends sessions already open
+      // too, not just new sign-ins.
+      const keys = u ? [...new Set([u.login_name, u.email].filter(Boolean).map(k => String(k).toLowerCase()))] : [];
+      if (keys.length) {
+        const lk = await db.getAsync(
+          `SELECT 1 AS x FROM login_lockouts WHERE scope = 'account' AND scope_key IN (${keys.map(() => '?').join(', ')}) AND locked_until_ms >= ? LIMIT 1`,
+          [...keys, MANUAL_LOCK_MS]);
+        locked = !!lk;
+      }
     } catch (e) {
       if (lenient) return s;
       const err = new Error('session check failed: ' + e.message); err.dbDown = true; throw err;
     }
     // Every login stamps pv; a session without one was not issued by a
     // login (e.g. forged with leaked signing keys) — never accept it.
-    if (!u || !u.is_active || !s.pv || s.pv !== pwVersion(u.password_hash)) {
+    if (!u || !u.is_active || locked || !s.pv || s.pv !== pwVersion(u.password_hash)) {
       req.session = null;
       return null;
     }
