@@ -67,7 +67,7 @@ subdomains) removed.
 |---|---|---|
 | GET | `/health` | Liveness only (outside `/api`, before logging/sessions/maintenance). `{status:'ok', service:'web-app', uptime}` |
 | GET | `/api/public/config` | `appTitle`, `appSubtitle`, `orgName`, `allowMemberRegistration`, `passwordMinLength`, `showLinksInBrowser` |
-| GET | `/api/site` | `{ appTitle, appSubtitle, orgName, tagline, foundedYear, phone, email, ein, addressLine1, addressLine2, city, state, zip, address, meetingInfo, facebookUrl, instagramUrl, youtubeUrl, xUrl, nextdoorUrl, donationUrl, logoUrl, sections: {hero, about, help, partner, footer} }` (tokens applied; every fact is also a `{{token}}`, plus `{{phoneTel}}`, `{{year}}`, `{{eventCount}}`) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
+| GET | `/api/site` | `{ appTitle, appSubtitle, orgName, tagline, foundedYear, phone, email, ein, addressLine1, addressLine2, city, state, zip, address, meetingInfo, facebookUrl, instagramUrl, youtubeUrl, xUrl, nextdoorUrl, donationUrl, logoUrl, sections: {hero, about, impact, help, partner, footer} }` (tokens applied; every fact is also a `{{token}}`, plus `{{phoneTel}}`, `{{year}}`, `{{eventCount}}`) — see [website-content.md](website-content.md). `/api/content` = legacy alias `{ sections }` |
 | GET | `/api/events?when=upcoming\|past` | `{ when, events: [Event] }`. `status = 'published'` only. upcoming = `starts_at ≥ now−12h`, soonest first; past = newest first, ≤50 |
 | GET | `/api/events/:slug` | `:slug` = `latest` → the event marked `is_latest` (same rules; 404 unless it's published). `{ event }` + `description_html`, `map_url`, `beneficiaries_text`, `beneficiaries: [{name, url, org_id?, profile_path?}]` (org link only while that org is verified + listed). 404 unless published — or `?preview=<token>` with the console's unexpired preview token, which returns any status plus `preview: true, status` (sent `no-store`) |
 | GET | `/api/raffles?status=current\|past` | `{ status, raffles: [Raffle] }`. current = open/closed, past = drawn; published only; ≤50 |
@@ -155,7 +155,7 @@ the board, categories and cities are all managed in
 **mmoa_admin_console**, which reaches this app's directory (locally, over SSH,
 or through AWS SSM) and:
 
-- edits `config.json`, `HTML/<section>.html` (hero, about, help, partner,
+- edits `config.json`, `HTML/<section>.html` (hero, about, impact, help, partner,
   footer) and `HTML/images/`;
 - writes/deletes uploaded images in `uploads/{events,raffles,orgs,board}/`;
 - reads `logs/app.log`;

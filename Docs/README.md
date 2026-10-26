@@ -15,5 +15,5 @@ Detailed documentation for `mmoa_web_app`. Start with the root
 - **[email.md](email.md)** — email transports (console / SMTP / SES), the
   verification flow, and the `showLinksInBrowser` testing bypass.
 - **[website-content.md](website-content.md)** — the admin-editable website:
-  the `HTML/` section files (hero, about, help, partner, footer), site photos,
+  the `HTML/` section files (hero, about, impact, help, partner, footer), site photos,
   the logo override and `{{tokens}}`.

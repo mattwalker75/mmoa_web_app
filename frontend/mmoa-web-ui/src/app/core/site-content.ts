@@ -12,6 +12,7 @@ export const CORE_VALUES = [
   { name: 'Respect & Inclusivity', text: 'Valuing diverse perspectives and promoting an environment of mutual respect among all members.' }
 ];
 
+/** Fallback for "What we've done" — the live list is HTML/impact.html. */
 export const PAST_IMPACT = [
   'Community Chili Cook-Off Fundraiser',
   'Partnership with Texas Bank for the Christmas Angel Tree Program',

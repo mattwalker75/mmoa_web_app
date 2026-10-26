@@ -50,10 +50,18 @@ import { LogoComponent } from '../shared/logo.component';
         }
       </section>
 
-      <section aria-labelledby="impact-h">
-        <h2 id="impact-h">What we've done</h2>
-        <ul class="impact">@for (i of impact; track i) { <li>{{ i }}</li> }</ul>
-      </section>
+      <!-- HTML/impact.html (editable in the admin console); the built-in list
+           only if that file is missing, nothing if it was emptied. -->
+      @if (site.loaded() && site.sectionState('impact') !== 'empty') {
+        <section aria-labelledby="impact-h">
+          <h2 id="impact-h">What we've done</h2>
+          @if (site.sectionState('impact') === 'content') {
+            <div appRouteLinks [innerHTML]="site.section('impact')"></div>
+          } @else {
+            <ul class="impact">@for (i of impact; track i) { <li>{{ i }}</li> }</ul>
+          }
+        </section>
+      }
 
       <section aria-label="Photos">
         <div class="gallery">@for (p of gallery; track p.src) { <img [src]="p.src" [alt]="p.alt" loading="lazy"> }</div>

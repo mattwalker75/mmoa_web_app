@@ -515,7 +515,7 @@ module.exports = function (db, appConfig) {
   // request with no per-request disk cost when unchanged — then {{tokens}}
   // are substituted from config + live data.
   const CONTENT_DIR = path.join(__dirname, '..', 'HTML');
-  const SECTION_KEYS = ['hero', 'about', 'help', 'partner', 'footer'];
+  const SECTION_KEYS = ['hero', 'about', 'impact', 'help', 'partner', 'footer'];
   const _contentCache = {}; // section -> { mtimeMs, raw }
 
   function readSectionRaw(section) {
@@ -640,4 +640,4 @@ module.exports = function (db, appConfig) {
   return router;
 };
 
-module.exports.SECTION_KEYS = ['hero', 'about', 'help', 'partner', 'footer'];
+module.exports.SECTION_KEYS = ['hero', 'about', 'impact', 'help', 'partner', 'footer'];

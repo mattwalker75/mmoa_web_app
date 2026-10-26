@@ -14,6 +14,7 @@ next page load).
 | `hero` → `HTML/hero.html` | Home, top banner | Background photo (`<img class="hero-bg">`) + `.hero-inner` with kicker, `<h1>`, lede and the two CTA buttons |
 | `about` → `HTML/about.html` | Home "story" block **and** top of `/about` | Story intro: the `.marker` accent line + paragraphs. No heading (the page provides it). |
 | `help` → `HTML/help.html` | `/about` → "How you can help" | `<ul class="help-list">` items (`<strong>` title + text) and `<p class="tagline">`. No heading. |
+| `impact` → `HTML/impact.html` | `/about`, under "What we've done" | `<ul class="impact">` with one `<li>` per item (each shows as a card with a green edge). Emptied (blank or only a comment) hides the heading too; if the file is missing the page shows the built-in list (`PAST_IMPACT` in `site-content.ts`). |
 | `partner` → `HTML/partner.html` | `/partner` (Partner With Us) body | Lede, `<h2>` sub-sections, `.help-list`, `<ol class="steps">`. The page adds its own H1 and the sign-up call-to-action card. |
 | `footer` → `HTML/footer.html` | Every page | `.foot-org` (name, EIN, phone, ©) + `<nav class="foot-links">`. The **"Need help now? 911 · 988 · 211" box is built into the SPA**, not this file, so it can't be edited away. |
 
@@ -76,14 +77,15 @@ Unknown tokens are left as-is.
 
 ## Not in a section file
 
-The core values (with descriptions), the "What we've done" impact list and the
-photo captions are fixed copy in `frontend/mmoa-web-ui/src/app/core/site-content.ts`
-(edit + rebuild). The "Need Help?" / directory UI strings are in
+The core values (with descriptions) and the photo captions are fixed copy in
+`frontend/mmoa-web-ui/src/app/core/site-content.ts` (edit + rebuild). The
+"What we've done" list is the `impact` section above; `PAST_IMPACT` there is
+only its fallback for when `HTML/impact.html` is missing. The "Need Help?" / directory UI strings are in
 `core/strings.ts` (kept together so a Spanish translation can be added later).
 
 ## How it works
 
 `GET /api/site` reads the section files (mtime-cached → live but cheap),
 substitutes tokens, and returns
-`{ appTitle, orgName, phone, ein, facebookUrl, donationUrl, logoUrl, sections: { hero, about, help, partner, footer } }`.
+`{ appTitle, orgName, phone, ein, facebookUrl, donationUrl, logoUrl, sections: { hero, about, impact, help, partner, footer } }`.
 (`GET /api/content` is kept as a legacy alias returning `{ sections }`.)

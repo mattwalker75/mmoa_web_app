@@ -45,6 +45,14 @@ export class SiteService {
   /** A website section (HTML/<key>.html) as trusted HTML. Trusted because it
    *  is first-party content written only by the admin console, never user
    *  input — and the CSP still blocks any script in it. */
+  /** 'content' — the section has something to show; 'empty' — the admin
+   *  blanked it (hide it); 'missing' — no such file (use a built-in default). */
+  sectionState(key: string): 'content' | 'empty' | 'missing' {
+    const html = this.info().sections[key];
+    if (typeof html !== 'string') return 'missing';
+    return html.replace(/<!--[\s\S]*?-->/g, '').trim() ? 'content' : 'empty';
+  }
+
   section(key: string): SafeHtml | null {
     const html = this.info().sections[key];
     return html ? this.sanitizer.bypassSecurityTrustHtml(html) : null;
