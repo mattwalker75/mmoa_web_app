@@ -39,6 +39,8 @@ export class SiteService {
     const e = (this.info().email || '').trim();
     return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(e) ? e : '';
   });
+  /** The header "Need Help?" button + other links to the directory (on unless turned off). */
+  readonly needHelp = computed(() => this.info().needHelpEnabled !== false);
   /** tel: target — digits only, +1 for a 10-digit US number. */
   readonly phoneTel = computed(() => {
     const d = this.phone().replace(/\D/g, '');

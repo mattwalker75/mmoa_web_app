@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { SiteService } from '../core/site.service';
 
 @Component({
   selector: 'app-not-found',
@@ -8,9 +9,11 @@ import { RouterLink } from '@angular/router';
   template: `
     <div class="page page-narrow">
       <h1>Page not found</h1>
-      <p class="lede">That page doesn't exist. Try the <a routerLink="/">home page</a>, our <a routerLink="/events">events</a>,
-        or <a routerLink="/need-help">find help near Anna</a>.</p>
+      <p class="lede">That page doesn't exist. Try the <a routerLink="/">home page</a>@if (site.needHelp()) {, our <a routerLink="/events">events</a>,
+        or <a routerLink="/need-help">find help near Anna</a>} @else { or our <a routerLink="/events">events</a>}.</p>
     </div>
   `
 })
-export class NotFoundComponent {}
+export class NotFoundComponent {
+  site = inject(SiteService);
+}

@@ -563,7 +563,9 @@ module.exports = function (db, appConfig) {
       xUrl: safeHttpUrl(site.xUrl) || '',
       nextdoorUrl: safeHttpUrl(site.nextdoorUrl) || '',
       // '' unless the admin turned the Donate button on (and the link is valid).
-      donationUrl: (site.donationEnabled === true && safeHttpUrl(site.donationUrl)) || ''
+      donationUrl: (site.donationEnabled === true && safeHttpUrl(site.donationUrl)) || '',
+      // false only when turned off in the console (missing = on)
+      needHelpEnabled: site.needHelpEnabled !== false
     };
   }
 

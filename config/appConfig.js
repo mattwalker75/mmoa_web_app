@@ -30,6 +30,9 @@ const defaults = {
     phone: '', // public contact phone; '' hides every phone line on the site
     ein: '33-4035685',
     facebookUrl: 'https://www.facebook.com/missionmenofanna',
+    // Header "Need Help?" button (and the site's other links to the
+    // directory). The /need-help pages stay reachable either way.
+    needHelpEnabled: true,
     donationEnabled: false,
     donationUrl: ''
   },

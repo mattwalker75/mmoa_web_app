@@ -64,7 +64,7 @@ import { RouteLinksDirective } from '../shared/route-links.directive';
             <span class="kicker">Local partners</span>
             <h2 id="np-h" style="margin-top:6px">Nonprofits serving our community</h2>
           </div>
-          <a routerLink="/need-help">Find help →</a>
+          @if (site.needHelp()) { <a routerLink="/need-help">Find help →</a> }
         </div>
         <app-nonprofit-carousel [orgs]="orgs()" />
       </section>
