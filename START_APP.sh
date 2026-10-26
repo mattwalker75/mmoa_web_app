@@ -105,6 +105,21 @@ case "$1" in
     ;;
 esac
 
+# The sqlite3 driver is a native module. npm downloads a prebuilt binary,
+# and the current one is compiled against glibc 2.38 — newer than Amazon
+# Linux 2023's 2.34, so on EC2 it fails to load ("GLIBC_2.38 not found").
+# If the driver doesn't load here, compile it on this machine instead (needs
+# gcc-c++, make and python3 — the EC2 user data installs them).
+if [ -d node_modules/sqlite3 ] && ! node -e "require('sqlite3')" >/dev/null 2>&1; then
+  echo "[start] the prebuilt sqlite3 driver doesn't load on this system — compiling it from source (a minute or two)…"
+  if npm rebuild sqlite3 --build-from-source >/dev/null 2>logs/sqlite3-build.log && node -e "require('sqlite3')" >/dev/null 2>&1; then
+    echo "[start] sqlite3 driver compiled OK."
+  else
+    echo "[start] ERROR: could not compile the sqlite3 driver — see logs/sqlite3-build.log (needs gcc-c++, make, python3)." >&2
+    exit 1
+  fi
+fi
+
 # Known-vulnerability check on the production dependencies (see the header
 # comment). Never blocks the start: the whole block is best effort. `timeout`
 # (coreutils) caps a slow registry; macOS has none by default, so fall back
