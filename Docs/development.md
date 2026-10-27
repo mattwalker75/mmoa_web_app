@@ -97,7 +97,11 @@ Rules worth knowing:
     section with "← Your profile", "Next: …" and a pinned Save bar (hidden
     on Activity, Login and Photos). Leaving a section with unsaved edits asks
     first and, if confirmed, restores the last saved values. State lives in
-    `portal.component.ts` (`isPhone`, `mSec`); styles in "Phones — portal".
+    `portal.component.ts` (`isPhone`, `mSec`); styles in "Phones — portal";
+  - pop-ups (portal "Preview public profile", event/raffle flyer) open as a
+    full-screen sheet sized in `dvh`. In `vh`, iPhone Safari measures against
+    the screen with its toolbars hidden, which pushed the Close button under
+    the address bar.
 
   When changing a page, check it at 390px as well as desktop. Approved
   mockups: https://claude.ai/artifact/GD4c9awdS4UoP6HvGfZrCW

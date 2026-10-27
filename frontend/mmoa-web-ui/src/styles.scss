@@ -748,4 +748,17 @@ dialog.sos-dialog::backdrop { background: rgba(0,0,0,.72); }
   .save-bar > span { flex: 1; min-width: 0; line-height: 1.3; }
   .save-bar .btn { flex: none; min-height: 48px; padding: 12px 22px; }
   .portal.m-list .save-bar, .portal.m-nosave .save-bar { display: none; }
+
+  /* Pop-ups (portal "Preview public profile", event/raffle flyer): a
+     full-screen sheet on phones. Sized in vh, iPhone Safari measures them
+     against the screen with its toolbars hidden, so a centered pop-up's top
+     edge — and its Close button — slid under the address bar. dvh is the
+     visible area (100% is the fallback for browsers without dvh). */
+  dialog.flyer-dialog, dialog.preview-dialog { margin: 0; inset: 0; width: 100%; max-width: 100%; height: 100%; max-height: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .flyer-dialog .bar { flex-wrap: nowrap; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px 16px; z-index: 1; }
+  .flyer-dialog .bar strong { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+  .flyer-dialog .bar strong { font-size: 15px; }
+  .flyer-dialog .bar .btn-row { flex-wrap: nowrap; gap: 8px; flex: none; }
+  .flyer-dialog .bar .btn { min-height: 44px; padding: 10px 16px; font-size: 16px; flex: none; }
+  .preview-dialog .pp-body { padding: 16px 16px 28px; }
 }
