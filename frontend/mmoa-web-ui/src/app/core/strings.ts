@@ -14,6 +14,17 @@ export const NEED_HELP_STRINGS = {
     intro: "Choose what you need. We'll show local nonprofits that Mission Men of Anna has verified.",
     stepNeed: '1. What do you need help with?',
     pickHint: 'Choose one or more. No choice shows everything.',
+    // Phones: emergency pop-up shown when the page opens (once per visit).
+    sosTitle: 'Need help right now?',
+    sosIntro: 'Tap a number to call. Close this to search for local help.',
+    sos911: 'Emergency', sos911Sub: 'Police, fire or ambulance',
+    sos988: 'Crisis or suicide', sos988Sub: 'Call or text, any time',
+    sos211: 'Other local services', sos211Sub: 'Food, housing, bills and more',
+    sosClose: 'Close and find help',
+    sosReopen: 'Emergency numbers: 911 · 988 · 211',
+    // Phones: only the first eight needs show until this is opened.
+    moreNeeds: (n: number, picked: number) => `More needs (${n})` + (picked ? ` · ${picked} selected` : ''),
+    fewerNeeds: 'Fewer needs',
     clearAll: 'Clear all',
     selectedCount: (n: number) => `${n} selected`,
     stepCity: '2. City',

@@ -57,7 +57,7 @@ shared/
   org-card.component.ts        # a nonprofit as a "Need Help?" search result
   org-view.component.ts        # a nonprofit's full public profile
   profile-preview-dialog…      # portal "Preview Public Profile" popup (uses the two above)
-  nonprofit-carousel…          # Home's left → right partner strip
+  nonprofit-carousel…          # Home's left → right partner strip (a swipe row on phones)
 ```
 
 Rules worth knowing:
@@ -74,7 +74,27 @@ Rules worth knowing:
   leaves the page where it is, and Back/Forward restores the old position,
   retrying briefly while the page's list loads.
 - **Moving content** (the Home strip) pauses on hover / focus, has a Pause
-  button, and stays still under `prefers-reduced-motion`.
+  button, and stays still under `prefers-reduced-motion`. On phones it is
+  always a still row you swipe.
+- **Phones (≤ 700px) have their own layout; tablets and desktops don't
+  change.** All of it is the "Phones" section at the end of `styles.scss`
+  plus two helper classes: `.phone-only` (hidden above 700px) and
+  `.wide-only` (hidden at 700px and below). On phones:
+  - the header is one bar (logo, Need Help? pill, a labeled **Menu** button
+    that opens a full-screen list — a modal `<dialog>`);
+  - event and raffle cards become compact rows, and the Home raffle card
+    drops its photo;
+  - the event page puts title, date, place and Register & pay before the
+    flyer (which becomes a "View the flyer" card), and pins a slim Register
+    bar to the bottom once the registration band scrolls away;
+  - Need Help opens with a pop-up of 911 / 988 / 211 (once per visit,
+    `sessionStorage` key `mmoa.needHelp.sosShown`; a red link under the
+    intro reopens it) instead of the red strip, and shows the first eight
+    needs until **More needs** is opened;
+  - the footer shows the emergency numbers as three tap-to-call buttons.
+
+  When changing a page, check it at 390px as well as desktop. Approved
+  mockups: https://claude.ai/artifact/GD4c9awdS4UoP6HvGfZrCW
 
 ## Lifecycle scripts
 

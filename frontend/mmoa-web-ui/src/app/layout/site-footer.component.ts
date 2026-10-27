@@ -40,9 +40,16 @@ import { S } from '../core/strings';
           </div>
         }
         <aside class="help-now" aria-label="Need help now?">
-          <strong>Need help now?</strong><br>
+          <strong>Need help now?</strong>
+          <span class="wide-only"><br>
           Emergency: <a href="tel:911">911</a> · Crisis line: <a href="tel:988">988</a><br>
-          Other local services: dial <a href="tel:211">211</a>
+          Other local services: dial <a href="tel:211">211</a></span>
+          <!-- Phones: the same three numbers as big tap-to-call buttons. -->
+          <span class="sos-row phone-only">
+            <a class="sos-btn" href="tel:911"><b>911</b><small>Emergency</small></a>
+            <a class="sos-btn" href="tel:988"><b>988</b><small>Crisis line</small></a>
+            <a class="sos-btn" href="tel:211"><b>211</b><small>Local services</small></a>
+          </span>
         </aside>
       </div>
     </footer>

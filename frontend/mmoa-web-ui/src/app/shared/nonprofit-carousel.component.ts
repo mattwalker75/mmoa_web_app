@@ -13,6 +13,9 @@ import { PublicOrg } from '../core/models';
  * second copy exists only for the visual loop: it's hidden from screen
  * readers and its links are out of the tab order. With fewer than 4
  * nonprofits there's nothing to loop, so the row just sits still.
+ * Phones (≤ 700px) always get the still, swipeable row with a
+ * "Swipe for more" hint: a moving strip is hard to read and tap on a small
+ * screen (styles.scss "Phones").
  */
 @Component({
   selector: 'app-nonprofit-carousel',
@@ -47,6 +50,7 @@ import { PublicOrg } from '../core/models';
           }
         </div>
       </div>
+      @if (orgs.length > 1) { <p class="np-swipe-hint phone-only" aria-hidden="true">Swipe for more →</p> }
     </div>
   `
 })

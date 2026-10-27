@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, ViewChild, afterNextRender, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -17,7 +17,16 @@ import { OrgCardComponent } from '../shared/org-card.component';
  * (?category=a,b&city=&q=) so Back works and a search can be shared —
  * nothing is stored anywhere. Typing replaces the history entry instead of
  * adding one per keystroke.
+ *
+ * Phones (≤ 700px, styles.scss "Phones"): the page opens with a pop-up of the
+ * three emergency numbers (911 / 988 / 211) as tap-to-call buttons — once per
+ * visit (sessionStorage), closed with ✕, "Close and find help", Esc or a tap
+ * outside — and a red link under the intro reopens it. The red emergency strip
+ * above the header is hidden on phones in its place. Only the first eight
+ * needs show until "More needs" is opened.
  */
+const SOS_SEEN_KEY = 'mmoa.needHelp.sosShown';
+
 @Component({
   selector: 'app-need-help',
   standalone: true,
@@ -28,6 +37,10 @@ import { OrgCardComponent } from '../shared/org-card.component';
         <span class="kicker">{{ S.kicker }}</span>
         <h1 style="margin:8px 0 10px">{{ S.title }}</h1>
         <p class="lede" style="margin:0">{{ S.intro }}</p>
+        <button type="button" class="sos-reopen phone-only" aria-haspopup="dialog" (click)="openSos()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"></path></svg>
+          {{ S.sosReopen }}
+        </button>
       </div>
 
       <section aria-labelledby="need-label" class="stack" style="gap:12px">
@@ -42,11 +55,17 @@ import { OrgCardComponent } from '../shared/org-card.component';
           </div>
         </div>
         @if (metaError()) { <div class="empty" role="alert">{{ S.loadError }}</div> }
-        <div class="cat-grid" role="group" aria-labelledby="need-label">
-          @for (c of categories(); track c.slug) {
-            <button type="button" class="cat-tile" [attr.aria-pressed]="isOn(c.slug)" (click)="toggle(c.slug)">{{ c.name }}</button>
+        <div class="cat-grid" [class.show-more]="showMore()" role="group" aria-labelledby="need-label">
+          @for (c of categories(); track c.slug; let i = $index) {
+            <button type="button" class="cat-tile" [class.extra]="i >= TOP_NEEDS" [attr.aria-pressed]="isOn(c.slug)" (click)="toggle(c.slug)">{{ c.name }}</button>
           }
         </div>
+        @if (categories().length > TOP_NEEDS) {
+          <button type="button" class="btn btn-outline more-needs phone-only" [attr.aria-expanded]="showMore()" (click)="showMore.set(!showMore())">
+            {{ showMore() ? S.fewerNeeds : S.moreNeeds(categories().length - TOP_NEEDS, extraPicked()) }}
+            <span aria-hidden="true">{{ showMore() ? '▲' : '▼' }}</span>
+          </button>
+        }
       </section>
 
       <form class="refine" aria-label="Refine search" (ngSubmit)="submit()">
@@ -80,6 +99,24 @@ import { OrgCardComponent } from '../shared/org-card.component';
           }
         }
       </section>
+
+      <dialog #sos class="sos-dialog" aria-labelledby="sos-h" (click)="sosBackdrop($event)">
+        <div class="sos-panel">
+          <div class="sos-head">
+            <div>
+              <h2 id="sos-h">{{ S.sosTitle }}</h2>
+              <p>{{ S.sosIntro }}</p>
+            </div>
+            <button type="button" class="sos-x" aria-label="Close" (click)="closeSos()">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            </button>
+          </div>
+          <a class="sos-call sos-911" href="tel:911"><b>911</b><span><strong>{{ S.sos911 }}</strong><small>{{ S.sos911Sub }}</small></span></a>
+          <a class="sos-call" href="tel:988"><b>988</b><span><strong>{{ S.sos988 }}</strong><small>{{ S.sos988Sub }}</small></span></a>
+          <a class="sos-call" href="tel:211"><b>211</b><span><strong>{{ S.sos211 }}</strong><small>{{ S.sos211Sub }}</small></span></a>
+          <button type="button" class="btn btn-outline btn-block" (click)="closeSos()" autofocus>{{ S.sosClose }}</button>
+        </div>
+      </dialog>
     </div>
   `
 })
@@ -102,11 +139,25 @@ export class NeedHelpComponent {
   private seq = 0;
   private destroyed = false;
 
+  /** Phones show only this many needs until "More needs" is opened. */
+  readonly TOP_NEEDS = 8;
+  showMore = signal(false);
+  /** Needs picked from the hidden ones — shown on the "More needs" button. */
+  extraPicked = computed(() => this.categories().slice(this.TOP_NEEDS).filter(c => this.selected().includes(c.slug)).length);
+  @ViewChild('sos', { static: true }) sos!: ElementRef<HTMLDialogElement>;
+
   constructor() {
     // The typing debounce must not outlive the page: its navigate() would
     // pull the visitor back here from wherever they went next.
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; clearTimeout(this.typing); });
     this.loadMeta();
+    // Phones: the emergency pop-up, once per visit (a closed tab starts over).
+    afterNextRender(() => {
+      if (!window.matchMedia('(max-width: 700px)').matches) return;
+      let seen = false;
+      try { seen = sessionStorage.getItem(SOS_SEEN_KEY) === '1'; sessionStorage.setItem(SOS_SEEN_KEY, '1'); } catch { /* storage blocked: show it */ }
+      if (!seen) this.openSos();
+    });
     this.route.queryParamMap.subscribe(p => {
       this.selected.set((p.get('category') || '').split(',').map(s => s.trim()).filter(Boolean));
       this.city.set(p.get('city') || 'any');
@@ -125,6 +176,11 @@ export class NeedHelpComponent {
       this.cities.set(m.cities);
     } catch { this.metaError.set(true); }
   }
+
+  openSos() { const d = this.sos.nativeElement; if (!d.open) d.showModal(); }
+  closeSos() { this.sos.nativeElement.close(); }
+  /** A tap on the dimmed area (the dialog element itself) closes it. */
+  sosBackdrop(e: MouseEvent) { if (e.target === this.sos.nativeElement) this.closeSos(); }
 
   isOn(slug: string) { return this.selected().includes(slug); }
   toggle(slug: string) {
