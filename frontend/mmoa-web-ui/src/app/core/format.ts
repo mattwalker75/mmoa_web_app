@@ -82,3 +82,6 @@ export function pageUrl(): string {
   u.searchParams.delete('preview');
   return u.toString();
 }
+
+/** A whole number with thousands separators: 50000 → "50,000". Blank for null. */
+export const count = (n: number | null | undefined) => (n == null || !Number.isFinite(Number(n))) ? '' : Number(n).toLocaleString('en-US');

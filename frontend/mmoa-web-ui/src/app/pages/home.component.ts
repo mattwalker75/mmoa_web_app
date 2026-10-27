@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { SiteService } from '../core/site.service';
 import { EventItem, PublicOrg, Raffle } from '../core/models';
-import { mediumDate } from '../core/format';
+import { count, mediumDate } from '../core/format';
 import { CORE_VALUES, PHOTOS } from '../core/site-content';
 import { EventCardComponent } from '../shared/event-card.component';
 import { NonprofitCarouselComponent } from '../shared/nonprofit-carousel.component';
@@ -47,7 +47,7 @@ import { RouteLinksDirective } from '../shared/route-links.directive';
             <h2 id="raffle-h">{{ r.title }}</h2>
             <div class="stat-grid" style="margin:6px 0">
               <div class="stat stat-dark"><div class="stat-label">Drawing</div><div class="stat-value">{{ date(r.drawing_at) || 'To be announced' }}</div></div>
-              @if (r.total_tickets) { <div class="stat stat-dark"><div class="stat-label">Total tickets</div><div class="stat-value">{{ r.total_tickets }}</div></div> }
+              @if (r.total_tickets) { <div class="stat stat-dark"><div class="stat-label">Total tickets</div><div class="stat-value">{{ count(r.total_tickets) }}</div></div> }
               @if (r.ticket_price_text) { <div class="stat stat-dark"><div class="stat-label">Ticket price</div><div class="stat-value">{{ r.ticket_price_text }}</div></div> }
             </div>
             <p class="soft" style="margin:0">Tickets are sold in person by MMoA members and at our events — never online.</p>
@@ -108,6 +108,7 @@ export class HomeComponent {
   values = CORE_VALUES;
   photos = [PHOTOS.booth, PHOTOS.volunteers, PHOTOS.fundraiser, PHOTOS.legion];
   date = mediumDate;
+  count = count;
 
   constructor() { this.load(); }
 
