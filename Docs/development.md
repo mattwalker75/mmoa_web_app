@@ -91,7 +91,13 @@ Rules worth knowing:
     `sessionStorage` key `mmoa.needHelp.sosShown`; a red link under the
     intro reopens it) instead of the red strip, and shows the first eight
     needs until **More needs** is opened;
-  - the footer shows the emergency numbers as three tap-to-call buttons.
+  - the footer shows the emergency numbers as three tap-to-call buttons;
+  - the nonprofit portal opens on a list of its sections, each with a
+    one-line summary ("Add some" when empty); tapping one shows only that
+    section with "← Your profile", "Next: …" and a pinned Save bar (hidden
+    on Activity, Login and Photos). Leaving a section with unsaved edits asks
+    first and, if confirmed, restores the last saved values. State lives in
+    `portal.component.ts` (`isPhone`, `mSec`); styles in "Phones — portal".
 
   When changing a page, check it at 390px as well as desktop. Approved
   mockups: https://claude.ai/artifact/GD4c9awdS4UoP6HvGfZrCW

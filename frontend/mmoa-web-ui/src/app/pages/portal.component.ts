@@ -68,6 +68,13 @@ function dayLabel(day: string): string {
  * view / link-click counts from /api/portal/metrics, loaded on its own so a
  * failure never blocks the page), and login & password.
  * Text fields save together with "Save changes"; photo changes save at once.
+ *
+ * Phones (≤ 700px, styles.scss "Phones — portal"): the page opens on a list
+ * of the sections, each with a one-line summary; tapping one shows only that
+ * section, with "← Your profile", "Next: …" and a pinned Save bar. Leaving a
+ * section with unsaved edits asks first and, if confirmed, puts the fields
+ * back to their last saved values. Tablet / desktop keep the single page with
+ * the side list of links.
  */
 @Component({
   selector: 'app-portal',
@@ -112,7 +119,37 @@ function dayLabel(day: string): string {
       <app-profile-preview-dialog [org]="data()!.preview" [isPublic]="data()!.isPublic" [adminHidden]="data()!.adminHidden" [loading]="previewLoading()" />
 
       <div class="page">
-        <div class="portal">
+        <div class="portal" [class.m-list]="isPhone() && !mSec()" [class.m-open]="isPhone() && !!mSec()" [class.m-nosave]="isPhone() && (mSec() === 'activity' || mSec() === 'login' || (mSec() === 'photos' && !dirty()))">
+          @if (isPhone() && !mSec()) {
+            <div class="m-hub">
+              <div>
+                <span class="kicker">Your nonprofit profile</span>
+                <h1 class="m-hub-name">{{ data()!.org.name || 'Your organization' }}</h1>
+              </div>
+              <button type="button" class="btn btn-outline btn-block" (click)="openPreview()" aria-haspopup="dialog">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                Preview public profile
+              </button>
+              @for (g of hubGroups; track g.title) {
+                <div>
+                  <h2 class="m-grp-h">{{ g.title }}</h2>
+                  <ul class="m-grp" [attr.aria-label]="g.title">
+                    @for (id of g.ids; track id) {
+                      <li>
+                        <button type="button" class="m-row" (click)="openSection(id)">
+                          <span class="m-row-text">
+                            <span class="m-row-t">{{ labelOf(id) }}@if (needsWork(id)) { <span class="m-flag">Add some</span> }</span>
+                            <span class="m-row-s">{{ summary(id) }}</span>
+                          </span>
+                          <svg class="m-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"></path></svg>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          }
           <nav class="portal-nav" aria-label="Profile sections">
             @for (s of sections; track s.id) {
               <a routerLink="/portal" [fragment]="s.id" [class.on]="frag() === s.id" [attr.aria-current]="frag() === s.id ? 'location' : null">{{ s.label }}{{ s.id === 'photos' ? ' (' + images().length + ' of ' + maxImages() + ')' : '' }}</a>
@@ -125,9 +162,15 @@ function dayLabel(day: string): string {
                changePassword()), so Enter in a password box never saves the
                profile instead. display:contents keeps the column layout. -->
           <div class="portal-main">
+          @if (isPhone() && mSec(); as id) {
+            <div class="m-back-row">
+              <button type="button" id="m-back" class="m-back" (click)="leaveSection(null)">← Your profile</button>
+              @if (listingIndex(id) > 0) { <span class="muted small">{{ listingIndex(id) }} of {{ listingIds.length }}</span> }
+            </div>
+          }
           <form class="contents-form" (ngSubmit)="save()" novalidate>
             <!-- Organization -->
-            <section id="organization" class="card" aria-labelledby="h-org" (input)="markDirty()">
+            <section id="organization" class="card" [class.m-on]="mSec() === 'organization'" aria-labelledby="h-org" (input)="markDirty()">
               <div class="result-head">
                 <h1 id="h-org">Organization</h1>
                 <span class="muted small">"Public" fields show on your profile and in search</span>
@@ -202,7 +245,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- Services -->
-            <section id="services" class="card" aria-labelledby="h-svc">
+            <section id="services" class="card" [class.m-on]="mSec() === 'services'" aria-labelledby="h-svc">
               <div class="sec-vis">
                 <h2 id="h-svc" style="margin:0">Services we provide</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('categories')" (click)="flip('categories')" [attr.aria-label]="'Services: ' + (isPub('categories') ? 'public' : 'hidden')">{{ isPub('categories') ? 'Public' : 'Hidden' }}</button>
@@ -232,7 +275,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- Search keywords (private) -->
-            <section id="keywords" class="card" aria-labelledby="h-kw" (input)="markDirty()">
+            <section id="keywords" class="card" [class.m-on]="mSec() === 'keywords'" aria-labelledby="h-kw" (input)="markDirty()">
               <div class="sec-vis">
                 <h2 id="h-kw" style="margin:0">Search keywords</h2>
                 <span class="private-badge">Never shown publicly</span>
@@ -247,7 +290,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- What to bring -->
-            <section id="bring" class="card" aria-labelledby="h-bring" (input)="markDirty()">
+            <section id="bring" class="card" [class.m-on]="mSec() === 'bring'" aria-labelledby="h-bring" (input)="markDirty()">
               <div class="sec-vis">
                 <h2 id="h-bring" style="margin:0">What to bring</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('what_to_bring')" (click)="flip('what_to_bring')" [attr.aria-label]="'What to bring: ' + (isPub('what_to_bring') ? 'public' : 'hidden')">{{ isPub('what_to_bring') ? 'Public' : 'Hidden' }}</button>
@@ -260,7 +303,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- Contacts -->
-            <section id="contacts" class="card" aria-labelledby="h-contacts" (input)="markDirty()" (change)="markDirty()">
+            <section id="contacts" class="card" [class.m-on]="mSec() === 'contacts'" aria-labelledby="h-contacts" (input)="markDirty()" (change)="markDirty()">
               <div class="sec-vis">
                 <h2 id="h-contacts" style="margin:0">Contacts</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('contacts')" (click)="flip('contacts')" [attr.aria-label]="'Contacts: ' + (isPub('contacts') ? 'public' : 'hidden')">{{ isPub('contacts') ? 'Public' : 'Hidden' }}</button>
@@ -286,7 +329,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- Photos -->
-            <section id="photos" class="card" aria-labelledby="h-photos">
+            <section id="photos" class="card" [class.m-on]="mSec() === 'photos'" aria-labelledby="h-photos">
               <div class="sec-vis">
                 <h2 id="h-photos" style="margin:0">Photos</h2>
                 <button type="button" class="vis-btn" [attr.aria-pressed]="isPub('images')" (click)="flip('images')" [attr.aria-label]="'Photos: ' + (isPub('images') ? 'public' : 'hidden')">{{ isPub('images') ? 'Public' : 'Hidden' }}</button>
@@ -319,7 +362,7 @@ function dayLabel(day: string): string {
             </section>
 
             <!-- Visibility -->
-            <section id="visibility" class="card" aria-labelledby="h-vis">
+            <section id="visibility" class="card" [class.m-on]="mSec() === 'visibility'" aria-labelledby="h-vis">
               <h2 id="h-vis">Visibility</h2>
               <label class="switch"><input type="checkbox" name="is_listed" [checked]="listed()" (change)="listed.set(!listed()); markDirty()"> List my organization in "Need Help?"</label>
               <p class="muted" style="margin-top:8px">Turn this off to hide your whole profile from search for a while. Your organization's name is always public when listed; your EIN and your login email are never public.</p>
@@ -331,8 +374,9 @@ function dayLabel(day: string): string {
               <span aria-live="polite" class="small">
                 @if (saveErr()) { <span style="color:var(--danger-text)" role="alert">{{ saveErr() }}</span> }
                 @if (saveMsg()) { <span style="color:var(--chip-text)">{{ saveMsg() }}</span> }
+                @if (!saveErr() && !saveMsg() && dirty()) { <span class="phone-only m-unsaved">Unsaved changes</span> }
               </span>
-              <button type="button" class="btn btn-primary" (click)="openPreview()" aria-haspopup="dialog">Preview Public Profile</button>
+              <button type="button" class="btn btn-primary wide-only" (click)="openPreview()" aria-haspopup="dialog">Preview Public Profile</button>
               <button type="submit" class="btn btn-primary" [disabled]="saving()">
                 @if (saving()) { <span class="spinner" role="status" aria-label="Saving"></span> } @else { Save changes }
               </button>
@@ -340,7 +384,7 @@ function dayLabel(day: string): string {
           </form>
 
             <!-- Activity -->
-            <section id="activity" class="card" aria-labelledby="h-act">
+            <section id="activity" class="card" [class.m-on]="mSec() === 'activity'" aria-labelledby="h-act">
               <h2 id="h-act">Your profile activity</h2>
               <p class="muted" style="margin-top:0">Counts of how often your profile appeared in Need Help searches, was opened, and how often each of your links was used. No personal data about visitors is collected.</p>
               @if (metricsState() === 'error') {
@@ -392,7 +436,7 @@ function dayLabel(day: string): string {
 
             <!-- Login & password -->
             <form class="contents-form" (ngSubmit)="changePassword()" novalidate>
-            <section id="login" class="card" aria-labelledby="h-login">
+            <section id="login" class="card" [class.m-on]="mSec() === 'login'" aria-labelledby="h-login">
               <h2 id="h-login">Login &amp; password</h2>
               @if (data()!.account; as a) {
                 <dl class="kv" style="margin-bottom:18px">
@@ -419,6 +463,16 @@ function dayLabel(day: string): string {
               <button type="submit" class="btn btn-outline" [disabled]="pwBusy()">Update password</button>
             </section>
             </form>
+            @if (isPhone() && mSec(); as id) {
+              @if (nextOf(id); as nx) {
+                <button type="button" class="btn btn-outline btn-block m-next" (click)="leaveSection(nx)">
+                  Next: {{ labelOf(nx) }}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"></path></svg>
+                </button>
+              } @else {
+                <button type="button" class="btn btn-outline btn-block m-next" (click)="leaveSection(null)">Back to your profile</button>
+              }
+            }
           </div>
         </div>
       </div>
@@ -439,6 +493,97 @@ export class PortalComponent implements HasUnsavedChanges {
     { id: 'visibility', label: 'Visibility' }, { id: 'activity', label: 'Your profile activity' }, { id: 'login', label: 'Login & password' }
   ];
   textRows = TEXT_ROWS;
+
+  // ── Phones: section list → one section at a time ─────────────────────
+  /** True at ≤ 700px (the phone breakpoint in styles.scss). */
+  isPhone = signal(false);
+  /** The section open on a phone; null = the list of sections. */
+  mSec = signal<string | null>(null);
+  readonly listingIds = ['organization', 'services', 'keywords', 'bring', 'contacts', 'photos', 'visibility'];
+  readonly hubGroups = [
+    { title: 'Your listing', ids: this.listingIds },
+    { title: 'Your account', ids: ['activity', 'login'] }
+  ];
+  labelOf(id: string) { return this.sections.find(s => s.id === id)?.label || id; }
+  listingIndex(id: string) { return this.listingIds.indexOf(id) + 1; }
+  nextOf(id: string): string | null { const i = this.listingIds.indexOf(id); return i >= 0 && i < this.listingIds.length - 1 ? this.listingIds[i + 1] : null; }
+  /** Sections with nothing filled in yet get an "Add some" flag on the list. */
+  needsWork(id: string): boolean {
+    switch (id) {
+      case 'services': return !this.cats().length;
+      case 'keywords': return !this.f.search_tags.trim();
+      case 'bring': return !this.f.what_to_bring.trim();
+      case 'contacts': return !this.contacts.length;
+      case 'photos': return !this.images().length;
+      default: return false;
+    }
+  }
+  /** One-line summary under each section on the phone list. */
+  summary(id: string): string {
+    const d = this.data();
+    if (!d) return '';
+    switch (id) {
+      case 'organization': return 'Name, address, phone, email, links, hours';
+      case 'services': {
+        const cats = d.options.categories.filter(c => this.cats().includes(c.slug)).map(c => c.name);
+        const cities = this.chosenCities().map(c => c.name);
+        return [cats.length ? cats.join(', ') : 'No services picked yet', cities.length ? 'serves ' + cities.join(', ') : ''].filter(Boolean).join(' · ');
+      }
+      case 'keywords': {
+        const n = this.f.search_tags.split(',').map(t => t.trim()).filter(Boolean).length;
+        return (n ? `${n} keyword${n === 1 ? '' : 's'}` : 'None yet') + ' · never shown publicly';
+      }
+      case 'bring': {
+        const n = this.f.what_to_bring.split('\n').map(t => t.trim()).filter(Boolean).length;
+        return n ? `${n} item${n === 1 ? '' : 's'}` : 'None yet';
+      }
+      case 'contacts': {
+        const c = this.contacts;
+        if (!c.length) return 'None yet';
+        const first = [c[0].name, c[0].role].filter(Boolean).join(' · ') || 'Contact 1';
+        return c.length > 1 ? `${first} + ${c.length - 1} more` : first;
+      }
+      case 'photos': return `${this.images().length} of ${this.maxImages()}`;
+      case 'visibility': {
+        if (!this.listed()) return 'Hidden from Need Help search';
+        const hidden = Object.keys(FIELD_NAMES).filter(k => !this.pub().includes(k)).length;
+        return 'Listed in Need Help · ' + (hidden ? `${hidden} field${hidden === 1 ? '' : 's'} hidden` : 'everything public');
+      }
+      case 'activity': return 'Searches, profile views and link taps';
+      case 'login': return 'Login name, login email, change password';
+      default: return '';
+    }
+  }
+  openSection(id: string) {
+    this.mSec.set(id);
+    this.toTop('m-back');
+  }
+  /** "← Your profile" / "Next": unsaved edits are lost on leaving a section,
+   *  so ask first (same wording as leaving the page). Confirmed → the form
+   *  goes back to the last saved values. */
+  leaveSection(next: string | null) {
+    if (this.dirty()) {
+      if (!window.confirm('You have unsaved changes to your profile. Leave this section and lose them?')) return;
+      const saved = this.data();
+      if (saved) this.apply(saved);
+      this.saveMsg.set(''); this.saveErr.set('');
+    }
+    const from = this.mSec();
+    this.mSec.set(next);
+    this.toTop(next ? 'm-back' : null, from);
+  }
+  /** New screen → start at the top, focus its first control (or, back on the
+   *  list, the row just left) so keyboard / screen-reader users aren't lost. */
+  private toTop(focusId: string | null, fromSection?: string | null) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    setTimeout(() => {
+      if (focusId) document.getElementById(focusId)?.focus();
+      else if (fromSection) {
+        const i = this.hubGroups.flatMap(g => g.ids).indexOf(fromSection);
+        (document.querySelectorAll('.m-row')[i] as HTMLElement | undefined)?.focus();
+      }
+    });
+  }
 
   data = signal<PortalPayload | null>(null);
   loadErr = signal('');
@@ -476,6 +621,12 @@ export class PortalComponent implements HasUnsavedChanges {
 
   constructor() {
     this.route.fragment.subscribe(fr => { if (fr) this.frag.set(fr); });
+    // Phones get the section list (see isPhone / mSec).
+    const mq = window.matchMedia('(max-width: 700px)');
+    const onMq = () => this.isPhone.set(mq.matches);
+    onMq();
+    mq.addEventListener('change', onMq);
+    inject(DestroyRef).onDestroy(() => mq.removeEventListener('change', onMq));
     // Unsaved edits: the route guard asks before an in-app navigation; this
     // covers a reload / closed tab.
     const warn = (e: BeforeUnloadEvent) => { if (this.hasUnsavedChanges()) e.preventDefault(); };
