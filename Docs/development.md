@@ -87,6 +87,9 @@ Rules worth knowing:
   - the event page puts title, date, place and Register & pay before the
     flyer (which becomes a "View the flyer" card), and pins a slim Register
     bar to the bottom once the registration band scrolls away;
+  - the raffle page follows the same pattern: the drawing and the tickets
+    as icon rows, "How to get tickets", then a "View the flyer" card (the
+    desktop "View flyer" thumbnail tile is hidden; photo thumbnails stay);
   - Need Help opens with a pop-up of 911 / 988 / 211 (once per visit,
     `sessionStorage` key `mmoa.needHelp.sosShown`; a red link under the
     intro reopens it) instead of the red strip, and shows the first eight

@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -6,11 +6,18 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { SiteService } from '../core/site.service';
 import { Raffle } from '../core/models';
-import { mediumDate, time } from '../core/format';
+import { count, mediumDate, time } from '../core/format';
 import { FlyerDialogComponent } from '../shared/flyer-dialog.component';
 import { ShareButtonsComponent } from '../shared/share-buttons.component';
 
-/** /raffles/:slug (RaffleDetail mockup). The server also injects og: tags for this URL. */
+/**
+ * /raffles/:slug (RaffleDetail mockup). The server also injects og: tags for this URL.
+ *
+ * Phones (≤ 700px, styles.scss "Phones") lay it out like the event page,
+ * without changing tablet/desktop: the drawing and the tickets as icon rows,
+ * "How to get tickets", then the flyer as a "View the flyer" card (the
+ * "View flyer" thumbnail tile is desktop-only; photo thumbnails stay).
+ */
 @Component({
   selector: 'app-raffle-detail',
   standalone: true,
@@ -42,7 +49,7 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
               <img class="media-main" [src]="m.url" [alt]="m.alt || ('Raffle prize: ' + r.title)">
               <app-flyer-dialog #flyer [url]="r.flyer_url" [alt]="'Flyer for ' + r.title" [label]="r.title + ' — flyer'" />
               @if ((r.images?.length || 0) > 1 || r.flyer_url) {
-                <div class="thumbs">
+                <div class="thumbs" [class.wide-only]="(r.images?.length || 0) <= 1">
                   @if ((r.images?.length || 0) > 1) {
                     @for (img of r.images; track img.url; let i = $index) {
                       <button type="button" [attr.aria-pressed]="sel() === i" [attr.aria-label]="'Prize photo ' + (i + 1)" (click)="sel.set(i)">
@@ -50,7 +57,7 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
                       </button>
                     }
                   }
-                  @if (r.flyer_url) { <button type="button" class="thumb-text" (click)="flyer.open()">View flyer</button> }
+                  @if (r.flyer_url) { <button type="button" class="thumb-text wide-only" (click)="flyer.open()">View flyer</button> }
                 </div>
               }
             </div>
@@ -69,11 +76,29 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
               </div>
             }
 
-            <div class="stat-grid">
+            <div class="stat-grid wide-only">
               <div class="stat"><div class="stat-label">Drawing</div><div class="stat-value">{{ date(r.drawing_at) || 'To be announced' }}</div>
                 @if (drawSub(r)) { <div class="stat-sub">{{ drawSub(r) }}</div> }</div>
-              @if (r.total_tickets) { <div class="stat"><div class="stat-label">Total tickets</div><div class="stat-value">{{ r.total_tickets }}</div></div> }
+              @if (r.total_tickets) { <div class="stat"><div class="stat-label">Total tickets</div><div class="stat-value">{{ count(r.total_tickets) }}</div></div> }
               @if (r.ticket_price_text) { <div class="stat"><div class="stat-label">Ticket</div><div class="stat-value">{{ r.ticket_price_text }}</div></div> }
+            </div>
+
+            <!-- Phones: the event page's icon rows. -->
+            <div class="facts phone-only">
+              <div class="stat">
+                <span class="fact-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg></span>
+                <div class="stat-label">Drawing</div>
+                <div class="stat-value">{{ r.status === 'drawn' ? 'Drawn ' : '' }}{{ date(r.drawing_at) || 'Drawing date to be announced' }}</div>
+                @if (drawSub(r)) { <div class="stat-sub">{{ drawSub(r) }}</div> }
+              </div>
+              @if (r.ticket_price_text || r.total_tickets) {
+                <div class="stat">
+                  <span class="fact-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"></path><path d="M14 6v12" stroke-dasharray="2 2.5"></path></svg></span>
+                  <div class="stat-label">Tickets</div>
+                  <div class="stat-value">{{ r.ticket_price_text || 'Sold in person' }}</div>
+                  @if (r.total_tickets) { <div class="stat-sub">{{ count(r.total_tickets) }} tickets total</div> }
+                </div>
+              }
             </div>
 
             @if (r.status !== 'drawn') {
@@ -81,6 +106,14 @@ import { ShareButtonsComponent } from '../shared/share-buttons.component';
                 <h2 class="plain-h2" style="margin:0 0 8px">How to get tickets</h2>
                 <p class="soft" style="margin:0">{{ r.how_to_buy }}@if (site.phone()) { Questions? Call <a [href]="'tel:' + site.phoneTel()">{{ site.phone() }}</a>.}</p>
               </section>
+            }
+
+            @if (r.flyer_url) {
+              <button type="button" class="flyer-card phone-only" (click)="openFlyer()">
+                <img [src]="r.flyer_url" alt="">
+                <span class="fc-text"><b>View the flyer</b><span>Full size, or save it to share</span></span>
+                <svg class="fc-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"></path></svg>
+              </button>
             }
 
             @if (r.prize_html) { <section><h2>About the prize</h2><div class="prose" [innerHTML]="r.prize_html"></div></section> }
@@ -129,7 +162,10 @@ export class RaffleDetailComponent {
   sel = signal(0);
   state = signal<'loading' | 'ok' | 'missing' | 'error'>('loading');
   date = mediumDate;
+  count = count;
   private seq = 0;
+  private flyer = viewChild<FlyerDialogComponent>('flyer');
+  openFlyer() { this.flyer()?.open(); }
 
   /** The big photo: the selected prize image, else the flyer. */
   main = computed(() => {
