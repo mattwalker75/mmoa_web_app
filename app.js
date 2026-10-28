@@ -118,7 +118,7 @@ app.use(compression());
 // before sessions / rate-limit / maintenance so it is never blocked, throttled,
 // or served the maintenance page. Liveness only: returns 200 without touching
 // the DB, so a briefly-busy database can't flap the target out of service.
-// The ALB target group in mmoa_web_app_infra (e_ALB_mmoa.yaml,
+// The ALB target group in mmoa_web_app_infra (e_ALB.yaml,
 // HealthCheckPath) probes this path.
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'web-app', uptime: process.uptime() });
