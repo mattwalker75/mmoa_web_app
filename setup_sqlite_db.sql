@@ -282,6 +282,8 @@ CREATE TABLE IF NOT EXISTS events (
     preview_token      TEXT,
     preview_expires_at TIMESTAMP,
     is_latest          INTEGER NOT NULL DEFAULT 0,   -- 1 = shown at /events/latest
+    home_starts_at     TIMESTAMP,   -- show on the home page from (NULL + NULL = the usual rule)
+    home_ends_at       TIMESTAMP,   -- … until
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMP
 );
@@ -342,6 +344,8 @@ CREATE TABLE IF NOT EXISTS raffles (
     is_published         INTEGER NOT NULL DEFAULT 0,
     preview_token        TEXT,        -- console Preview link (/raffles/<slug>?preview=…), ~30 min
     preview_expires_at   TIMESTAMP,
+    home_starts_at       TIMESTAMP,   -- show on the home page from (NULL + NULL = the usual rule)
+    home_ends_at         TIMESTAMP,   -- … until
     created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP,
     FOREIGN KEY (beneficiary_org_id) REFERENCES organizations (org_id) ON DELETE SET NULL

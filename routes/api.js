@@ -14,6 +14,7 @@
 //   GET  /api/site                       — org facts + website sections (HTML/)
 //   GET  /api/events[?when=past], /api/events/:slug
 //   GET  /api/raffles[?status=past], /api/raffles/:slug
+//   GET  /api/home                       — the home page's events + raffle
 //   GET  /api/board
 //   GET  /api/directory/meta, /api/directory/search, /api/directory/orgs/:id
 //   (accounts — below; logins exist only for partner nonprofits)

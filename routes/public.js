@@ -7,6 +7,7 @@
 //   GET /api/events/:slug
 //   GET /api/raffles?status=current|past
 //   GET /api/raffles/:slug
+//   GET /api/home                  — the home page's events (≤ 3) + raffle (≤ 1)
 //   GET /api/board
 //   GET /api/directory/meta
 //   GET /api/directory/search?category=<slug>&city=<name|any>&q=<text>[&count=0 → don't count it as a search]
@@ -17,6 +18,9 @@
 //              also shows a draft / archived one, marked preview).
 //   raffles  — visibility = 'published' (any stage); winning_ticket only once drawn.
 //              (A valid console preview token also shows a draft / archived one.)
+//   home     — published events / raffles only, then the home-page window
+//              (home_starts_at / home_ends_at) when either end is set, else
+//              the usual upcoming / current rule — see onHomePage below.
 //   orgs     — verified AND is_listed = 1 AND NOT admin_hidden (orgs.isPublic), and
 //              then only the fields in public_fields (helpers/orgs.js). The
 //              EIN is never sent. Everything else is a 404 — indistinguishable
@@ -41,6 +45,46 @@ const rateLimit = require('express-rate-limit');
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UPCOMING_GRACE_MS = 12 * 3600 * 1000; // an event stays "upcoming" until 12 h after it starts
 const PAST_EVENTS_LIMIT = 50;
+const HOME_EVENTS_LIMIT = 3;
+
+// ── Home-page window ──────────────────────────────────────────────────────
+// events and raffles carry home_starts_at / home_ends_at ("show on the home
+// page from / until", set in the admin console). The window of a row, as
+// { from, until } in epoch ms (either may be null = open on that side), or
+// null when both are empty — then the home page uses the usual rule. A row
+// read before the boot migration added the columns simply has no such keys
+// (SELECT *), so an older database behaves exactly as before.
+function homeWindow(r) {
+  const ms = (v) => { const t = parseSqlTimeMs(v); return Number.isFinite(t) ? t : null; };
+  const from = ms(r.home_starts_at), until = ms(r.home_ends_at);
+  return from === null && until === null ? null : { from, until };
+}
+
+// Is a PUBLISHED row on the home page at `now`? Inside its window when it has
+// one (both ends inclusive) — whatever its start / drawing date or raffle
+// stage — otherwise `usual` (upcoming event / open-or-closed raffle).
+function onHomePage(r, now, usual) {
+  const w = homeWindow(r);
+  if (!w) return usual;
+  return (w.from === null || now >= w.from) && (w.until === null || now <= w.until);
+}
+
+// Home raffle order: open, then closed, then drawn (a legacy stage last);
+// open / closed soonest drawing first, drawn most recent drawing first;
+// undated last; ties → newest raffle. For open / closed this is exactly
+// GET /api/raffles?status=current's order, so the home page's pick is
+// unchanged while no raffle has home dates.
+const HOME_STAGE_RANK = { open: 0, closed: 1, drawn: 2 };
+function homeRaffleOrder(a, b) {
+  const rank = (r) => (Object.hasOwn(HOME_STAGE_RANK, r.status) ? HOME_STAGE_RANK[r.status] : 3);
+  if (rank(a) !== rank(b)) return rank(a) - rank(b);
+  const t = (r) => { const ms = parseSqlTimeMs(r.drawing_at); return Number.isFinite(ms) ? ms : null; };
+  const ta = t(a), tb = t(b);
+  if (ta === tb) return b.raffle_id - a.raffle_id;
+  if (ta === null) return 1;
+  if (tb === null) return -1;
+  return a.status === 'drawn' ? tb - ta : ta - tb;
+}
 
 // Only http(s) links leave the server as clickable URLs (DB values are typed
 // in the console; this is defence in depth for href attributes in the SPA).
@@ -290,6 +334,44 @@ module.exports = function (db, appConfig) {
     } catch (err) {
       console.error('[api] raffle detail failed:', err);
       res.status(500).json({ error: 'Could not load this raffle' });
+    }
+  });
+
+  // ── Home page ─────────────────────────────────────────────────────────
+  // What the home page shows: up to 3 events (soonest start first) and one
+  // raffle. A published row with home dates shows exactly inside that window
+  // (onHomePage above) — before ticket sales open, after the event started,
+  // in any raffle stage; one without them follows the usual rule: upcoming
+  // events (as /api/events?when=upcoming) and the first current raffle (as
+  // /api/raffles?status=current). Same item shapes as those two lists, which
+  // are themselves unchanged.
+  async function loadHome() {
+    const now = Date.now();
+    const evRows = await db.allAsync("SELECT * FROM events WHERE status = 'published'");
+    const events = [];
+    for (const r of evRows) {
+      const start = parseSqlTimeMs(r.starts_at);
+      r._start = Number.isFinite(start) ? start : 0;
+      if (onHomePage(r, now, r._start >= now - UPCOMING_GRACE_MS)) events.push(r);
+    }
+    events.sort((a, b) => a._start - b._start);
+    const rfRows = await db.allAsync("SELECT * FROM raffles WHERE visibility = 'published'");
+    const raffles = rfRows.filter(r => onHomePage(r, now, r.status === 'open' || r.status === 'closed'));
+    raffles.sort(homeRaffleOrder);
+    return { events: events.slice(0, HOME_EVENTS_LIMIT), raffle: raffles[0] || null };
+  }
+
+  router.get('/home', async (req, res) => {
+    try {
+      const { events, raffle } = await loadHome();
+      const bens = await beneficiariesFor(events.map(r => r.event_id));
+      res.json({
+        events: events.map(r => publicEvent(r, bens.get(r.event_id), false)),
+        raffle: raffle ? (await publicRaffles([raffle], false))[0] : null
+      });
+    } catch (err) {
+      console.error('[api] home failed:', err);
+      res.status(500).json({ error: 'Could not load the home page' });
     }
   });
 
@@ -660,3 +742,5 @@ module.exports = function (db, appConfig) {
 };
 
 module.exports.SECTION_KEYS = ['hero', 'about', 'impact', 'help', 'partner', 'footer'];
+module.exports.homeWindow = homeWindow;
+module.exports.onHomePage = onHomePage;

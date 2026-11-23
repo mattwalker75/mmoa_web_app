@@ -10,8 +10,10 @@ import { EventCardComponent } from '../shared/event-card.component';
 import { NonprofitCarouselComponent } from '../shared/nonprofit-carousel.component';
 import { RouteLinksDirective } from '../shared/route-links.directive';
 
-/** Home (Main mockup): hero, 3 upcoming events, current raffle, a sliding strip
- *  of partner nonprofits, story, partner band. */
+/** Home (Main mockup): hero, up to 3 events, one raffle, a sliding strip of
+ *  partner nonprofits, story, partner band. Which events / raffle: GET
+ *  /api/home (the upcoming / current ones, or by their "show on the home
+ *  page" dates when the console set them). */
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -43,14 +45,15 @@ import { RouteLinksDirective } from '../shared/route-links.directive';
         <div class="feature">
           @if (r.image_url) { <img [src]="r.image_url" [alt]="'Raffle prize: ' + r.title"> }
           <div class="body">
-            <span class="kicker">{{ r.status === 'open' ? 'Current raffle' : 'Raffle — ticket sales closed' }}</span>
+            <span class="kicker">{{ r.status === 'open' ? 'Current raffle' : r.status === 'drawn' ? 'Raffle — winner drawn' : 'Raffle — ticket sales closed' }}</span>
             <h2 id="raffle-h">{{ r.title }}</h2>
             <div class="stat-grid" style="margin:6px 0">
               <div class="stat stat-dark"><div class="stat-label">Drawing</div><div class="stat-value">{{ date(r.drawing_at) || 'To be announced' }}</div></div>
+              @if (r.status === 'drawn' && r.winning_ticket) { <div class="stat stat-dark"><div class="stat-label">Winning ticket</div><div class="stat-value">#{{ r.winning_ticket }}</div></div> }
               @if (r.total_tickets) { <div class="stat stat-dark"><div class="stat-label">Total tickets</div><div class="stat-value">{{ count(r.total_tickets) }}</div></div> }
               @if (r.ticket_price_text) { <div class="stat stat-dark"><div class="stat-label">Ticket price</div><div class="stat-value">{{ r.ticket_price_text }}</div></div> }
             </div>
-            <p class="soft" style="margin:0">Tickets are sold in person by MMoA members and at our events — never online.</p>
+            @if (r.status !== 'drawn') { <p class="soft" style="margin:0">Tickets are sold in person by MMoA members and at our events — never online.</p> }
             <a class="btn btn-primary" style="align-self:flex-start;margin-top:6px" [routerLink]="['/raffles', r.slug]">Raffle details &amp; rules</a>
           </div>
         </div>
@@ -113,12 +116,13 @@ export class HomeComponent {
   constructor() { this.load(); }
 
   private async load() {
-    const [ev, ra] = await Promise.allSettled([
-      firstValueFrom(this.api.events('upcoming')),
-      firstValueFrom(this.api.raffles('current'))
-    ]);
-    if (ev.status === 'fulfilled') this.events.set(ev.value.events.slice(0, 3)); else this.error.set(true);
-    if (ra.status === 'fulfilled') this.raffle.set(ra.value.raffles[0] || null);
+    // One call: the server picks the events and the raffle (its clock, and
+    // each item's "show on the home page" dates when set).
+    try {
+      const home = await firstValueFrom(this.api.home());
+      this.events.set(home.events.slice(0, 3));
+      this.raffle.set(home.raffle || null);
+    } catch { this.error.set(true); }
     this.loading.set(false);
     try { this.orgs.set((await firstValueFrom(this.api.directorySearch({ count: false }))).results); }
     catch { /* no strip — the rest of the page is unaffected */ }

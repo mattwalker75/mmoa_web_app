@@ -176,7 +176,10 @@ content-hashed so this is safe, but hard-reload if a CSS change doesn't show.
   `data:` links, attribute break-outs); Open Graph tag building; usage
   metrics (flush, a failed flush keeping its counts, hour → day → week
   rollup, the 30-day window, summary shape); setup-file parsing for the boot
-  migrations; and the SQLite transaction gate.
+  migrations; the SQLite transaction gate; and the home page
+  (`test/homePage.test.js`: no dates = the old picks, the "show on the home
+  page" window, the 3 / 1 limits, `/api/events` + `/api/raffles` unchanged,
+  and an older database before and after its migration).
 - `node scripts/seed-sample-data.js` — fills an empty site with clearly
   labelled **[Sample]** content: 3 verified nonprofits (logins `sample-org-1..3`
   with unusable random passwords), an upcoming 3rd Annual Coyote Cruisers Car &

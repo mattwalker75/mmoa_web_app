@@ -36,6 +36,12 @@ export class ApiService {
     const q = preview ? '?preview=' + encodeURIComponent(preview) : '';
     return this.http.get<{ raffle: Raffle }>('/api/raffles/' + encodeURIComponent(slug) + q, this.opts);
   }
+  /** The home page's events (≤ 3) and raffle (or null): the usual upcoming /
+   *  current ones, or — for those with "show on the home page" dates — the
+   *  ones inside their window (decided by the server). */
+  home(): Observable<{ events: EventItem[]; raffle: Raffle | null }> {
+    return this.http.get<{ events: EventItem[]; raffle: Raffle | null }>('/api/home', this.opts);
+  }
   board(): Observable<{ board: BoardMember[] }> { return this.http.get<{ board: BoardMember[] }>('/api/board', this.opts); }
 
   // "Need Help?" directory

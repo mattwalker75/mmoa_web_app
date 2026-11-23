@@ -328,7 +328,13 @@ const COLUMN_MIGRATIONS = [
   // Nonprofits (2026-10): hidden-by-MMoA override and the console's Preview link.
   ['organizations', 'admin_hidden', 'INTEGER NOT NULL DEFAULT 0'],
   ['organizations', 'preview_token', 'VARCHAR(64)'],
-  ['organizations', 'preview_expires_at', 'TIMESTAMP NULL']
+  ['organizations', 'preview_expires_at', 'TIMESTAMP NULL'],
+  // "Show on the home page from / until" (2026-11), set in the console. Both
+  // NULL = the usual home-page rule (routes/public.js onHomePage).
+  ['events', 'home_starts_at', 'TIMESTAMP NULL'],
+  ['events', 'home_ends_at', 'TIMESTAMP NULL'],
+  ['raffles', 'home_starts_at', 'TIMESTAMP NULL'],
+  ['raffles', 'home_ends_at', 'TIMESTAMP NULL']
 ];
 
 // Indexes added after a DB's first launch. CREATE … IF NOT EXISTS is
@@ -510,7 +516,7 @@ async function runColumnMigrations(db) {
       const m = (e && e.message) || '';
       if (/command denied/i.test(m)) {
         console.error(`[db] MIGRATION NEEDED: column ${table}.${col} is missing and this database user may not ALTER tables. ` +
-          `Add it as an admin: ALTER TABLE ${table} ADD COLUMN ${col} ${type};  (or re-run setup_mysql_db.sql as root)`);
+          `Add it as an admin: ALTER TABLE ${table} ADD COLUMN ${col} ${type};  (re-running setup_mysql_db.sql does not add columns to an existing table)`);
       } else if (!/duplicate column|already exists|no such table|doesn't exist/i.test(m)) {
         console.warn(`[db] migration ${table}.${col} skipped:`, m);
       }

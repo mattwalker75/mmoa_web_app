@@ -123,7 +123,8 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   `preview_expires_at` (the console's 30-minute Preview link), `is_latest`
   (1 on at most one event — the console clears the others when it sets one;
   that event is also served at `/events/latest`, so `latest` is a reserved
-  slug),
+  slug), `home_starts_at` + `home_ends_at` ("show on the home page from /
+  until", NULL ok — see [The home page](#the-home-page)),
   `created_at`, `updated_at`. Public = `status = 'published'`; "upcoming" = `starts_at` no
   more than 12 h ago (sorted soonest first); "past" = the rest, newest first,
   50 max.
@@ -142,7 +143,7 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
   stage open), `winning_ticket`, `is_published` (legacy mirror, 1 only while
   published), `is_latest` (1 on at most one raffle — the console clears the
   others — also served at `/raffles/latest`; `latest` is a reserved slug), `preview_token` + `preview_expires_at` (console Preview),
-  `created_at`, `updated_at`. Public = `visibility = 'published'` (any stage);
+  `home_starts_at` + `home_ends_at` (as events), `created_at`, `updated_at`. Public = `visibility = 'published'` (any stage);
   "current" = open/closed, "past" = drawn; `winning_ticket` is only sent once
   drawn. The stage can be stepped in any visibility, so a draft can be
   previewed in each stage.
@@ -156,6 +157,27 @@ All timestamps are JS-computed UTC `'YYYY-MM-DD HH:MM:SS'` (`sqlTime`).
 - **`board_members`** — `board_id`, `role_title`, `role_description`,
   `person_name` (NULL until filled), `photo_path` (`board/…`), `sort`. The six
   roles (Chair … Sergeant at Arms) are seeded.
+
+### The home page
+
+The home page (`GET /api/home`, `loadHome` in `routes/public.js`) shows up to
+**3 events** and **1 raffle**, chosen among *published* ones only:
+
+- An event or raffle whose `home_starts_at` and `home_ends_at` are **both
+  NULL** follows the usual rule: an upcoming event (`starts_at` no more than
+  12 h ago), an open or closed raffle.
+- One with **either set** is on the home page exactly while the server's
+  "now" is within `[home_starts_at, home_ends_at]` (both ends inclusive; an
+  empty end is open on that side) — whatever its start or drawing date and
+  whatever the raffle's stage (so it can show before ticket sales open, after
+  the event has started, or with the winner after the drawing).
+- Events: soonest `starts_at` first, the first 3. Raffle: open, then closed,
+  then drawn; open / closed soonest drawing first, drawn most recent drawing
+  first; undated last; ties → the newest raffle.
+
+The Events and Raffles pages (`/api/events`, `/api/raffles`) ignore these
+columns. Times are UTC like `starts_at`; the console's form converts from
+Central time.
 
 Seeds (categories, cities, board roles) are guarded — re-running a setup file
 never duplicates them. No sample events/raffles/orgs are seeded; for a demo
@@ -212,7 +234,11 @@ remove files).
    `organizations.preview_token`, `organizations.preview_expires_at`,
    `events.status`, `events.preview_token`, `events.preview_expires_at`,
    `events.is_latest`, `raffles.preview_token`, `raffles.preview_expires_at`,
-   `raffles.visibility`, `raffles.is_latest`.
+   `raffles.visibility`, `raffles.is_latest`, and (2026-11)
+   `events.home_starts_at`, `events.home_ends_at`, `raffles.home_starts_at`,
+   `raffles.home_ends_at` (all `TIMESTAMP NULL`). The site reads events and
+   raffles with `SELECT *`, so until a column exists it simply behaves as if
+   it were empty.
 4. `ROW_MIGRATIONS` — reference rows the app depends on, inserted only if
    missing (`INSERT OR IGNORE` / `INSERT IGNORE`): today the `other` category;
    plus the `events.status` backfill, the raffle visibility / stage
@@ -225,8 +251,18 @@ When you add a column: add it to **both** `setup_*.sql` files **and**
 `SCHEMA_V2_TABLES`. Note `SETUP_MYSQL_DB.sh` grants the app user only
 `SELECT, INSERT, UPDATE, DELETE`, so on MySQL the boot migration can't create
 tables (it logs a warning) or add columns (it logs `MIGRATION NEEDED` as an
-error, with the SQL) — apply schema changes as an admin (or re-run
-`setup_mysql_db.sql`, which is idempotent).
+error, with the SQL) — apply schema changes as an admin. Re-running
+`setup_mysql_db.sql` is idempotent and creates missing *tables*, but
+`CREATE TABLE IF NOT EXISTS` doesn't add columns to a table that already
+exists — for those, run the `ALTER TABLE … ADD COLUMN` lines from the log, e.g.
+for the home-page dates:
+
+```sql
+ALTER TABLE events  ADD COLUMN home_starts_at TIMESTAMP NULL;
+ALTER TABLE events  ADD COLUMN home_ends_at   TIMESTAMP NULL;
+ALTER TABLE raffles ADD COLUMN home_starts_at TIMESTAMP NULL;
+ALTER TABLE raffles ADD COLUMN home_ends_at   TIMESTAMP NULL;
+```
 
 SQLite **CHECK** constraints can't be `ALTER`ed; to change one, rebuild the
 table (rename, recreate, `INSERT … SELECT`, drop, recreate indexes) inside a

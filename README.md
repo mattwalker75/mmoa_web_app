@@ -16,7 +16,9 @@ shares the links):
 - **Raffles** — prize photos, ticket info, claim rules; tickets are sold in
   person only; the winning ticket is posted after the drawing.
 - **Home** — hero, the next 3 events, the current raffle, and a sliding strip
-  of the partner nonprofits (left → right, pausable).
+  of the partner nonprofits (left → right, pausable). An event or raffle can
+  instead be given "show on the home page from / until" dates in the console,
+  which then decide when it is on the home page.
 - **About** (story, values, board, impact) and **Partner With Us**.
 - **"Need Help?"** — anyone can search verified local nonprofits by one or
   more needs, a city and a keyword that filters as you type (no account,
